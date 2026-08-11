@@ -10,9 +10,8 @@ import {
   orderBy,
   serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import bootstrap from "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.esm.min.js";
 
-// Firebase Config
+// Firebase Configuration
 const firebaseConfig = {
   apiKey: "AIzaSyD2ZJqSiJr0uMb52RhdeClKkBNoncT1VdM",
   authDomain: "memory-timeline-f5e32.firebaseapp.com",
@@ -27,10 +26,35 @@ const db = getFirestore(app);
 
 let loadedMemories = [];
 
-function getModalInstance(id) {
+// Safe Modal Loader using global window.bootstrap
+function openModal(id) {
   const el = document.getElementById(id);
-  return bootstrap.Modal.getOrCreateInstance(el);
+  if (el && window.bootstrap) {
+    const instance = window.bootstrap.Modal.getOrCreateInstance(el);
+    instance.show();
+  }
 }
+
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (el && window.bootstrap) {
+    const instance = window.bootstrap.Modal.getInstance(el);
+    if (instance) instance.hide();
+  }
+}
+
+// -------------------------------------------------------------
+// DIRECT TAP HANDLERS FOR IPAD SAFARI
+// -------------------------------------------------------------
+document.addEventListener('DOMContentLoaded', () => {
+  const btnMem = document.getElementById('btnAddMemory');
+  const btnCap = document.getElementById('btnAddCapsule');
+  const btnBkt = document.getElementById('btnAddBucket');
+
+  if (btnMem) btnMem.addEventListener('click', () => openModal('addMemoryModal'));
+  if (btnCap) btnCap.addEventListener('click', () => openModal('addCapsuleModal'));
+  if (btnBkt) btnBkt.addEventListener('click', () => openModal('addBucketModal'));
+});
 
 // -------------------------------------------------------------
 // WELCOME OVERLAY & FALLING ANIMATION
@@ -146,7 +170,7 @@ function openMemoryModal(id) {
     audioContainer.classList.add('d-none');
   }
 
-  getModalInstance('viewMemoryModal').show();
+  openModal('viewMemoryModal');
 }
 
 document.getElementById('memoryForm').addEventListener('submit', async (e) => {
@@ -166,10 +190,10 @@ document.getElementById('memoryForm').addEventListener('submit', async (e) => {
     });
     
     e.target.reset();
-    getModalInstance('addMemoryModal').hide();
+    closeModal('addMemoryModal');
   } catch (err) {
     console.error("Error adding memory: ", err);
-    alert("Could not save memory. Ensure Firestore Database rules are set to public allow read/write.");
+    alert("Could not save memory. Ensure Firestore Database rules allow read/write access.");
   } finally {
     submitBtn.disabled = false;
     submitBtn.innerText = 'Save Memory';
@@ -245,7 +269,7 @@ document.getElementById('capsuleForm').addEventListener('submit', async (e) => {
     });
 
     e.target.reset();
-    getModalInstance('addCapsuleModal').hide();
+    closeModal('addCapsuleModal');
   } catch (err) {
     console.error("Error creating capsule: ", err);
   }
@@ -293,7 +317,7 @@ onSnapshot(bucketQuery, (snapshot) => {
 
 function promptCompleteGoal(id) {
   document.getElementById('completeBucketId').value = id;
-  getModalInstance('completeBucketModal').show();
+  openModal('completeBucketModal');
 }
 
 document.getElementById('completeBucketForm').addEventListener('submit', async (e) => {
@@ -309,7 +333,7 @@ document.getElementById('completeBucketForm').addEventListener('submit', async (
     });
 
     e.target.reset();
-    getModalInstance('completeBucketModal').hide();
+    closeModal('completeBucketModal');
   } catch (err) {
     console.error("Error updating goal: ", err);
   }
@@ -327,7 +351,7 @@ document.getElementById('bucketForm').addEventListener('submit', async (e) => {
     });
 
     e.target.reset();
-    getModalInstance('addBucketModal').hide();
+    closeModal('addBucketModal');
   } catch (err) {
     console.error("Error adding goal: ", err);
   }
