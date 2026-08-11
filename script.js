@@ -10,6 +10,7 @@ import {
   orderBy,
   serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import bootstrap from "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.esm.min.js";
 
 // Firebase Config
 const firebaseConfig = {
@@ -27,11 +28,12 @@ const db = getFirestore(app);
 let loadedMemories = [];
 
 function getModalInstance(id) {
-  return bootstrap.Modal.getOrCreateInstance(document.getElementById(id));
+  const el = document.getElementById(id);
+  return bootstrap.Modal.getOrCreateInstance(el);
 }
 
 // -------------------------------------------------------------
-// WELCOME OVERLAY & FALLING ANIMATION FIX (DESTROY DOM NODE)
+// WELCOME OVERLAY & FALLING ANIMATION
 // -------------------------------------------------------------
 const welcomeScreen = document.getElementById('welcomeScreen');
 const proceedBtn = document.getElementById('proceedBtn');
@@ -63,30 +65,16 @@ function createFallingItem() {
 
 let fallingInterval = setInterval(createFallingItem, 300);
 
-proceedBtn.addEventListener('click', () => {
-  welcomeScreen.style.opacity = '0';
-  welcomeScreen.style.pointerEvents = 'none';
-  clearInterval(fallingInterval);
-  setTimeout(() => {
-    // Remove node completely so iPad Safari releases touch handling
-    welcomeScreen.remove();
-  }, 400);
-});
-
-// -------------------------------------------------------------
-// EXPLICIT JS MODAL TRIGGER BINDINGS (iOS SAFARI FIX)
-// -------------------------------------------------------------
-document.getElementById('btnOpenAddMemory').addEventListener('click', () => {
-  getModalInstance('addMemoryModal').show();
-});
-
-document.getElementById('btnOpenAddCapsule').addEventListener('click', () => {
-  getModalInstance('addCapsuleModal').show();
-});
-
-document.getElementById('btnOpenAddBucket').addEventListener('click', () => {
-  getModalInstance('addBucketModal').show();
-});
+if (proceedBtn && welcomeScreen) {
+  proceedBtn.addEventListener('click', () => {
+    welcomeScreen.style.opacity = '0';
+    welcomeScreen.style.pointerEvents = 'none';
+    clearInterval(fallingInterval);
+    setTimeout(() => {
+      welcomeScreen.remove();
+    }, 400);
+  });
+}
 
 // -------------------------------------------------------------
 // 1. TIMELINE LISTENERS
