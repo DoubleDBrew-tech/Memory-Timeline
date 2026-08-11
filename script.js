@@ -26,18 +26,19 @@ const db = getFirestore(app);
 
 let loadedMemories = [];
 
-function openModal(id) {
-  const el = document.getElementById(id);
-  if (el && window.bootstrap) {
-    const instance = window.bootstrap.Modal.getOrCreateInstance(el);
+// Helper functions using global bootstrap object loaded from index.html
+function openModalById(id) {
+  const modalEl = document.getElementById(id);
+  if (modalEl && window.bootstrap) {
+    const instance = window.bootstrap.Modal.getOrCreateInstance(modalEl);
     instance.show();
   }
 }
 
-function closeModal(id) {
-  const el = document.getElementById(id);
-  if (el && window.bootstrap) {
-    const instance = window.bootstrap.Modal.getInstance(el);
+function closeModalById(id) {
+  const modalEl = document.getElementById(id);
+  if (modalEl && window.bootstrap) {
+    const instance = window.bootstrap.Modal.getInstance(modalEl);
     if (instance) instance.hide();
   }
 }
@@ -156,7 +157,7 @@ function openMemoryModal(id) {
     audioContainer.classList.add('d-none');
   }
 
-  openModal('viewMemoryModal');
+  openModalById('viewMemoryModal');
 }
 
 document.getElementById('memoryForm').addEventListener('submit', async (e) => {
@@ -176,7 +177,7 @@ document.getElementById('memoryForm').addEventListener('submit', async (e) => {
     });
     
     e.target.reset();
-    closeModal('addMemoryModal');
+    closeModalById('addMemoryModal');
   } catch (err) {
     console.error("Error adding memory: ", err);
     alert("Could not save memory. Ensure Firestore Database rules allow read/write access.");
@@ -255,7 +256,7 @@ document.getElementById('capsuleForm').addEventListener('submit', async (e) => {
     });
 
     e.target.reset();
-    closeModal('addCapsuleModal');
+    closeModalById('addCapsuleModal');
   } catch (err) {
     console.error("Error creating capsule: ", err);
   }
@@ -303,7 +304,7 @@ onSnapshot(bucketQuery, (snapshot) => {
 
 function promptCompleteGoal(id) {
   document.getElementById('completeBucketId').value = id;
-  openModal('completeBucketModal');
+  openModalById('completeBucketModal');
 }
 
 document.getElementById('completeBucketForm').addEventListener('submit', async (e) => {
@@ -319,7 +320,7 @@ document.getElementById('completeBucketForm').addEventListener('submit', async (
     });
 
     e.target.reset();
-    closeModal('completeBucketModal');
+    closeModalById('completeBucketModal');
   } catch (err) {
     console.error("Error updating goal: ", err);
   }
@@ -337,7 +338,7 @@ document.getElementById('bucketForm').addEventListener('submit', async (e) => {
     });
 
     e.target.reset();
-    closeModal('addBucketModal');
+    closeModalById('addBucketModal');
   } catch (err) {
     console.error("Error adding goal: ", err);
   }
