@@ -13,69 +13,87 @@
 </head>
 <body>
 
-  <!-- Hero Header -->
-  <header class="hero-header text-center">
-    <div class="container">
-      <h1 class="display-4 fw-bold"><i class="bi bi-stars"></i> Memory Vault</h1>
-      <p class="lead">A real-time timeline of our favorite moments & capsules for the future.</p>
+  <!-- WELCOME SCREEN OVERLAY -->
+  <div id="welcomeScreen" class="welcome-overlay d-flex justify-content-center align-items-center text-center">
+    <div id="fallingContainer" class="falling-container"></div>
+    <div class="welcome-card card border-0 shadow-lg p-4 p-md-5 rounded-5 text-white">
+      <div class="card-body">
+        <div class="heart-pulse mb-3">💖</div>
+        <h1 class="display-5 fw-bold mb-3">Welcome, Leigh!</h1>
+        <p class="lead mb-4">A special space created to store our favorite memories, locked letters, and future goals.</p>
+        <button id="proceedBtn" type="button" class="btn btn-light btn-lg px-5 rounded-pill fw-bold text-primary shadow">
+          Enter Vault <i class="bi bi-arrow-right-short ms-1"></i>
+        </button>
+      </div>
     </div>
-  </header>
+  </div>
 
-  <div class="container pb-5">
-    <!-- Navigation Tabs -->
-    <ul class="nav nav-pills nav-justified mb-4 shadow-sm bg-white p-2 rounded-4" id="appTabs" role="tablist">
-      <li class="nav-item" role="presentation">
-        <button class="nav-link active fw-semibold" id="timeline-tab" data-bs-toggle="tab" data-bs-target="#timeline-pane" type="button">
-          <i class="bi bi-clock-history me-1"></i> Timeline
-        </button>
-      </li>
-      <li class="nav-item" role="presentation">
-        <button class="nav-link fw-semibold" id="capsule-tab" data-bs-toggle="tab" data-bs-target="#capsule-pane" type="button">
-          <i class="bi bi-envelope-paper-heart me-1"></i> "Open When..."
-        </button>
-      </li>
-      <li class="nav-item" role="presentation">
-        <button class="nav-link fw-semibold" id="bucket-tab" data-bs-toggle="tab" data-bs-target="#bucket-pane" type="button">
-          <i class="bi bi-check2-square me-1"></i> Bucket List
-        </button>
-      </li>
-    </ul>
-
-    <div class="tab-content" id="appTabsContent">
-
-      <!-- 1. TIMELINE PANE -->
-      <div class="tab-pane fade show active" id="timeline-pane">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-          <h3 class="fw-bold m-0"><i class="bi bi-journal-album text-primary"></i> Memory Timeline</h3>
-          <button type="button" class="btn btn-primary rounded-pill position-relative" style="z-index: 10;" id="openAddMemoryBtn" data-bs-toggle="modal" data-bs-target="#addMemoryModal">
-            <i class="bi bi-plus-lg me-1"></i> Add Memory
-          </button>
-        </div>
-        <div class="timeline" id="timelineContainer"></div>
+  <!-- MAIN APP CONTAINER (Hidden until Proceed is clicked) -->
+  <div id="mainApp" class="d-none">
+    <!-- Hero Header -->
+    <header class="hero-header text-center">
+      <div class="container">
+        <h1 class="display-4 fw-bold"><i class="bi bi-stars"></i> Memory Vault</h1>
+        <p class="lead">A real-time timeline of our favorite moments & capsules for the future.</p>
       </div>
+    </header>
 
-      <!-- 2. TIME CAPSULE PANE -->
-      <div class="tab-pane fade" id="capsule-pane">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-          <h3 class="fw-bold m-0"><i class="bi bi-hourglass-split text-danger"></i> "Open When..." Capsules</h3>
-          <button type="button" class="btn btn-outline-danger rounded-pill" data-bs-toggle="modal" data-bs-target="#addCapsuleModal">
-            <i class="bi bi-plus-lg me-1"></i> New Capsule
+    <div class="container pb-5">
+      <!-- Navigation Tabs -->
+      <ul class="nav nav-pills nav-justified mb-4 shadow-sm bg-white p-2 rounded-4" id="appTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active fw-semibold" id="timeline-tab" data-bs-toggle="tab" data-bs-target="#timeline-pane" type="button">
+            <i class="bi bi-clock-history me-1"></i> Timeline
           </button>
-        </div>
-        <div class="row g-4" id="capsuleContainer"></div>
-      </div>
-
-      <!-- 3. BUCKET LIST PANE -->
-      <div class="tab-pane fade" id="bucket-pane">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-          <h3 class="fw-bold m-0"><i class="bi bi-compass text-success"></i> Shared Bucket List</h3>
-          <button type="button" class="btn btn-success rounded-pill" data-bs-toggle="modal" data-bs-target="#addBucketModal">
-            <i class="bi bi-plus-lg me-1"></i> Add Goal
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link fw-semibold" id="capsule-tab" data-bs-toggle="tab" data-bs-target="#capsule-pane" type="button">
+            <i class="bi bi-envelope-paper-heart me-1"></i> "Open When..."
           </button>
-        </div>
-        <div class="row g-3" id="bucketListContainer"></div>
-      </div>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link fw-semibold" id="bucket-tab" data-bs-toggle="tab" data-bs-target="#bucket-pane" type="button">
+            <i class="bi bi-check2-square me-1"></i> Bucket List
+          </button>
+        </li>
+      </ul>
 
+      <div class="tab-content" id="appTabsContent">
+
+        <!-- 1. TIMELINE PANE -->
+        <div class="tab-pane fade show active" id="timeline-pane">
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3 class="fw-bold m-0"><i class="bi bi-journal-album text-primary"></i> Memory Timeline</h3>
+            <button type="button" class="btn btn-primary rounded-pill px-4" id="openAddMemoryBtn" data-bs-toggle="modal" data-bs-target="#addMemoryModal">
+              <i class="bi bi-plus-lg me-1"></i> Add Memory
+            </button>
+          </div>
+          <div class="timeline" id="timelineContainer"></div>
+        </div>
+
+        <!-- 2. TIME CAPSULE PANE -->
+        <div class="tab-pane fade" id="capsule-pane">
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3 class="fw-bold m-0"><i class="bi bi-hourglass-split text-danger"></i> "Open When..." Capsules</h3>
+            <button type="button" class="btn btn-outline-danger rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#addCapsuleModal">
+              <i class="bi bi-plus-lg me-1"></i> New Capsule
+            </button>
+          </div>
+          <div class="row g-4" id="capsuleContainer"></div>
+        </div>
+
+        <!-- 3. BUCKET LIST PANE -->
+        <div class="tab-pane fade" id="bucket-pane">
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3 class="fw-bold m-0"><i class="bi bi-compass text-success"></i> Shared Bucket List</h3>
+            <button type="button" class="btn btn-success rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#addBucketModal">
+              <i class="bi bi-plus-lg me-1"></i> Add Goal
+            </button>
+          </div>
+          <div class="row g-3" id="bucketListContainer"></div>
+        </div>
+
+      </div>
     </div>
   </div>
 
@@ -84,7 +102,7 @@
   <!-- View Memory Modal -->
   <div class="modal fade" id="viewMemoryModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content rounded-4">
+      <div class="modal-content rounded-4 border-0 shadow">
         <div class="modal-header border-0 pb-0">
           <h5 class="modal-title fw-bold" id="memoryModalTitle">Memory Title</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -105,7 +123,7 @@
   <!-- Add Memory Modal -->
   <div class="modal fade" id="addMemoryModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content rounded-4">
+      <div class="modal-content rounded-4 border-0 shadow">
         <div class="modal-header">
           <h5 class="modal-title fw-bold">Add New Memory</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -133,7 +151,7 @@
               <textarea id="memNote" class="form-control" rows="3" required></textarea>
             </div>
           </div>
-          <div class="modal-footer">
+          <div class="modal-footer border-0">
             <button type="submit" id="saveMemoryBtn" class="btn btn-primary w-100 rounded-pill">Save Memory</button>
           </div>
         </form>
@@ -144,7 +162,7 @@
   <!-- Add Capsule Modal -->
   <div class="modal fade" id="addCapsuleModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content rounded-4">
+      <div class="modal-content rounded-4 border-0 shadow">
         <div class="modal-header">
           <h5 class="modal-title fw-bold">Create Locked Time Capsule</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -164,7 +182,7 @@
               <textarea id="capContent" class="form-control" rows="4" placeholder="Write your letter here or paste a Spotify link..." required></textarea>
             </div>
           </div>
-          <div class="modal-footer">
+          <div class="modal-footer border-0">
             <button type="submit" class="btn btn-danger w-100 rounded-pill">Lock Capsule</button>
           </div>
         </form>
@@ -175,7 +193,7 @@
   <!-- Add Bucket Goal Modal -->
   <div class="modal fade" id="addBucketModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content rounded-4">
+      <div class="modal-content rounded-4 border-0 shadow">
         <div class="modal-header">
           <h5 class="modal-title fw-bold">Add Bucket Goal</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -196,7 +214,7 @@
               </select>
             </div>
           </div>
-          <div class="modal-footer">
+          <div class="modal-footer border-0">
             <button type="submit" class="btn btn-success w-100 rounded-pill">Add Goal</button>
           </div>
         </form>
@@ -207,7 +225,7 @@
   <!-- Complete Goal Modal -->
   <div class="modal fade" id="completeBucketModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content rounded-4">
+      <div class="modal-content rounded-4 border-0 shadow">
         <div class="modal-header">
           <h5 class="modal-title fw-bold">Check Off Goal! 🎉</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -221,7 +239,7 @@
               <input type="url" id="completePhotoUrl" class="form-control" placeholder="https://images.unsplash.com/...">
             </div>
           </div>
-          <div class="modal-footer">
+          <div class="modal-footer border-0">
             <button type="submit" class="btn btn-success w-100 rounded-pill">Complete Goal</button>
           </div>
         </form>
