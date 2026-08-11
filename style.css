@@ -4,11 +4,94 @@
   --bg-color: #f8f9fa;
 }
 
-body {
-  background-color: var(--bg-color);
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+* {
+  -webkit-tap-highlight-color: transparent;
 }
 
+body {
+  background-color: var(--bg-color);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* Welcome Overlay */
+.welcome-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: linear-gradient(135deg, #a29bfe 0%, #fd79a8 100%);
+  z-index: 9999;
+  overflow: hidden;
+  transition: opacity 0.4s ease, visibility 0.4s ease;
+  pointer-events: auto;
+}
+
+.welcome-card {
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  max-width: 500px;
+  width: 90%;
+  position: relative;
+  z-index: 10000;
+}
+
+.heart-pulse {
+  font-size: 3.5rem;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+.falling-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.falling-item {
+  position: absolute;
+  top: -50px;
+  color: #fff;
+  text-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  white-space: nowrap;
+  user-select: none;
+  animation: fallAndSway linear forwards;
+}
+
+@keyframes fallAndSway {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 0.9;
+  }
+  50% {
+    transform: translateY(50vh) rotate(15deg);
+  }
+  100% {
+    transform: translateY(105vh) rotate(-15deg);
+    opacity: 0;
+  }
+}
+
+/* Main Container Positioning */
+#mainApp {
+  position: relative;
+  z-index: 1;
+}
+
+/* Hero Header */
 .hero-header {
   background: linear-gradient(135deg, #6c5ce7 0%, #fd79a8 100%);
   color: white;
@@ -17,7 +100,7 @@ body {
   margin-bottom: 2rem;
 }
 
-/* Timeline Custom CSS */
+/* Timeline Layout */
 .timeline {
   position: relative;
   padding: 1rem 0;
@@ -32,12 +115,14 @@ body {
   width: 4px;
   background: var(--secondary-color);
   transform: translateX(-50%);
+  z-index: 1;
 }
 
 .timeline-item {
   position: relative;
   margin-bottom: 2.5rem;
   width: 50%;
+  z-index: 2;
 }
 
 .timeline-item.left {
@@ -59,7 +144,7 @@ body {
   background: var(--primary-color);
   border: 4px solid #fff;
   box-shadow: 0 0 0 2px var(--secondary-color);
-  z-index: 1;
+  z-index: 3;
 }
 
 .timeline-item.left .timeline-node { right: -10px; }
@@ -68,6 +153,8 @@ body {
 .card-memory {
   transition: transform 0.2s, box-shadow 0.2s;
   cursor: pointer;
+  position: relative;
+  z-index: 4;
 }
 
 .card-memory:hover {
@@ -75,7 +162,7 @@ body {
   box-shadow: 0 8px 20px rgba(0,0,0,0.12) !important;
 }
 
-/* Capsule Styling */
+/* Capsule Cards */
 .capsule-card.locked {
   background: #f1f2f6;
   border: 2px dashed #a4b0be;
@@ -86,7 +173,11 @@ body {
   border: 2px solid #2ed573;
 }
 
-/* Mobile Responsive Timeline Adjustment */
+button, .btn, .nav-link, input[type="checkbox"] {
+  cursor: pointer !important;
+  touch-action: manipulation;
+}
+
 @media (max-width: 768px) {
   .timeline::before { left: 20px; }
   .timeline-item { width: 100%; left: 0 !important; padding-left: 3rem !important; padding-right: 0 !important; }
