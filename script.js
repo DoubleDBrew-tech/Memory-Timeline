@@ -11,7 +11,7 @@ import {
   serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// Your web app's Firebase configuration
+// Firebase Config
 const firebaseConfig = {
   apiKey: "AIzaSyD2ZJqSiJr0uMb52RhdeClKkBNoncT1VdM",
   authDomain: "memory-timeline-f5e32.firebaseapp.com",
@@ -21,20 +21,76 @@ const firebaseConfig = {
   appId: "1:596383895352:web:9de8a283e3dc58ee727bcd"
 };
 
-// Initialize Firebase & Firestore
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Local cache for memory items
 let loadedMemories = [];
 
-// Helper to safely get or create Bootstrap modal instances
-function getModalInstance(modalId) {
-  const el = document.getElementById(modalId);
-  return bootstrap.Modal.getOrCreateInstance(el);
+function getModalInstance(id) {
+  return bootstrap.Modal.getOrCreateInstance(document.getElementById(id));
 }
 
-// ================= 1. TIMELINE REAL-TIME LISTENERS =================
+// -------------------------------------------------------------
+// WELCOME OVERLAY & FALLING ANIMATION FIX (DESTROY DOM NODE)
+// -------------------------------------------------------------
+const welcomeScreen = document.getElementById('welcomeScreen');
+const proceedBtn = document.getElementById('proceedBtn');
+const fallingContainer = document.getElementById('fallingContainer');
+
+function createFallingItem() {
+  if (!fallingContainer) return;
+  const item = document.createElement('div');
+  item.className = 'falling-item';
+
+  if (Math.random() > 0.6) {
+    item.innerText = "I Love Leigh";
+    item.style.fontSize = `${Math.floor(Math.random() * 10) + 16}px`;
+    item.style.fontWeight = "bold";
+  } else {
+    const hearts = ["💖", "❤️", "💕", "🌸", "✨"];
+    item.innerText = hearts[Math.floor(Math.random() * hearts.length)];
+    item.style.fontSize = `${Math.floor(Math.random() * 16) + 18}px`;
+  }
+
+  item.style.left = `${Math.random() * 95}%`;
+  const duration = Math.random() * 3 + 4;
+  item.style.animationDuration = `${duration}s`;
+
+  fallingContainer.appendChild(item);
+
+  setTimeout(() => item.remove(), duration * 1000);
+}
+
+let fallingInterval = setInterval(createFallingItem, 300);
+
+proceedBtn.addEventListener('click', () => {
+  welcomeScreen.style.opacity = '0';
+  welcomeScreen.style.pointerEvents = 'none';
+  clearInterval(fallingInterval);
+  setTimeout(() => {
+    // Remove node completely so iPad Safari releases touch handling
+    welcomeScreen.remove();
+  }, 400);
+});
+
+// -------------------------------------------------------------
+// EXPLICIT JS MODAL TRIGGER BINDINGS (iOS SAFARI FIX)
+// -------------------------------------------------------------
+document.getElementById('btnOpenAddMemory').addEventListener('click', () => {
+  getModalInstance('addMemoryModal').show();
+});
+
+document.getElementById('btnOpenAddCapsule').addEventListener('click', () => {
+  getModalInstance('addCapsuleModal').show();
+});
+
+document.getElementById('btnOpenAddBucket').addEventListener('click', () => {
+  getModalInstance('addBucketModal').show();
+});
+
+// -------------------------------------------------------------
+// 1. TIMELINE LISTENERS
+// -------------------------------------------------------------
 const memoriesQuery = query(collection(db, "memories"), orderBy("date", "asc"));
 
 onSnapshot(memoriesQuery, (snapshot) => {
@@ -43,7 +99,7 @@ onSnapshot(memoriesQuery, (snapshot) => {
   loadedMemories = [];
 
   if (snapshot.empty) {
-    container.innerHTML = '<p class="text-center text-muted py-4">No memories added yet. Click "Add Memory" above!</p>';
+    container.innerHTML = '<p class="text-center text-muted py-4">No memories added yet. Tap "Add Memory" above!</p>';
     return;
   }
 
@@ -105,7 +161,6 @@ function openMemoryModal(id) {
   getModalInstance('viewMemoryModal').show();
 }
 
-// Save Memory Form Handler
 document.getElementById('memoryForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const submitBtn = document.getElementById('saveMemoryBtn');
@@ -126,14 +181,16 @@ document.getElementById('memoryForm').addEventListener('submit', async (e) => {
     getModalInstance('addMemoryModal').hide();
   } catch (err) {
     console.error("Error adding memory: ", err);
-    alert("Could not save memory. Please check your Firebase Firestore rules or console errors.");
+    alert("Could not save memory. Ensure Firestore Database rules are set to public allow read/write.");
   } finally {
     submitBtn.disabled = false;
     submitBtn.innerText = 'Save Memory';
   }
 });
 
-// ================= 2. CAPSULE REAL-TIME LISTENERS =================
+// -------------------------------------------------------------
+// 2. CAPSULE LISTENERS
+// -------------------------------------------------------------
 const capsulesQuery = query(collection(db, "capsules"), orderBy("unlockDate", "asc"));
 
 onSnapshot(capsulesQuery, (snapshot) => {
@@ -203,11 +260,12 @@ document.getElementById('capsuleForm').addEventListener('submit', async (e) => {
     getModalInstance('addCapsuleModal').hide();
   } catch (err) {
     console.error("Error creating capsule: ", err);
-    alert("Error creating capsule: Check Firestore security rules.");
   }
 });
 
-// ================= 3. BUCKET LIST REAL-TIME LISTENERS =================
+// -------------------------------------------------------------
+// 3. BUCKET LIST LISTENERS
+// -------------------------------------------------------------
 const bucketQuery = query(collection(db, "bucketList"), orderBy("createdAt", "desc"));
 
 onSnapshot(bucketQuery, (snapshot) => {
@@ -266,7 +324,6 @@ document.getElementById('completeBucketForm').addEventListener('submit', async (
     getModalInstance('completeBucketModal').hide();
   } catch (err) {
     console.error("Error updating goal: ", err);
-    alert("Error updating goal: Check Firestore security rules.");
   }
 });
 
@@ -285,6 +342,5 @@ document.getElementById('bucketForm').addEventListener('submit', async (e) => {
     getModalInstance('addBucketModal').hide();
   } catch (err) {
     console.error("Error adding goal: ", err);
-    alert("Error adding goal: Check Firestore security rules.");
   }
 });
