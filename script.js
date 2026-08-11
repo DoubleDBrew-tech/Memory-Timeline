@@ -26,7 +26,6 @@ const db = getFirestore(app);
 
 let loadedMemories = [];
 
-// Safe Modal Loader using global window.bootstrap
 function openModal(id) {
   const el = document.getElementById(id);
   if (el && window.bootstrap) {
@@ -42,19 +41,6 @@ function closeModal(id) {
     if (instance) instance.hide();
   }
 }
-
-// -------------------------------------------------------------
-// DIRECT TAP HANDLERS FOR IPAD SAFARI
-// -------------------------------------------------------------
-document.addEventListener('DOMContentLoaded', () => {
-  const btnMem = document.getElementById('btnAddMemory');
-  const btnCap = document.getElementById('btnAddCapsule');
-  const btnBkt = document.getElementById('btnAddBucket');
-
-  if (btnMem) btnMem.addEventListener('click', () => openModal('addMemoryModal'));
-  if (btnCap) btnCap.addEventListener('click', () => openModal('addCapsuleModal'));
-  if (btnBkt) btnBkt.addEventListener('click', () => openModal('addBucketModal'));
-});
 
 // -------------------------------------------------------------
 // WELCOME OVERLAY & FALLING ANIMATION
@@ -111,7 +97,7 @@ onSnapshot(memoriesQuery, (snapshot) => {
   loadedMemories = [];
 
   if (snapshot.empty) {
-    container.innerHTML = '<p class="text-center text-muted py-4">No memories added yet. Tap "Add Memory" above!</p>';
+    container.innerHTML = '<div class="text-center py-4"><span class="empty-msg text-muted">No memories added yet. Tap "Add Memory" above!</span></div>';
     return;
   }
 
