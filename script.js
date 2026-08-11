@@ -25,8 +25,14 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Local memory cache for UI interaction
+// Local cache for memory items
 let loadedMemories = [];
+
+// Helper to safely get or create Bootstrap modal instances
+function getModalInstance(modalId) {
+  const el = document.getElementById(modalId);
+  return bootstrap.Modal.getOrCreateInstance(el);
+}
 
 // ================= 1. TIMELINE REAL-TIME LISTENERS =================
 const memoriesQuery = query(collection(db, "memories"), orderBy("date", "asc"));
@@ -37,7 +43,7 @@ onSnapshot(memoriesQuery, (snapshot) => {
   loadedMemories = [];
 
   if (snapshot.empty) {
-    container.innerHTML = '<p class="text-center text-muted">No memories added yet. Click "Add Memory" above!</p>';
+    container.innerHTML = '<p class="text-center text-muted py-4">No memories added yet. Click "Add Memory" above!</p>';
     return;
   }
 
@@ -47,7 +53,7 @@ onSnapshot(memoriesQuery, (snapshot) => {
     loadedMemories.push(item);
 
     const side = index % 2 === 0 ? 'left' : 'right';
-    const formattedDate = new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const formattedDate = item.date ? new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
     
     const element = document.createElement('div');
     element.className = `timeline-item ${side}`;
@@ -57,8 +63,8 @@ onSnapshot(memoriesQuery, (snapshot) => {
         ${item.image ? `<img src="${item.image}" class="card-img-top rounded-top-4" style="height: 180px; object-fit: cover;">` : ''}
         <div class="card-body">
           <small class="text-primary fw-bold">${formattedDate}</small>
-          <h5 class="card-title fw-bold mt-1">${item.title}</h5>
-          <p class="card-text text-muted text-truncate">${item.note}</p>
+          <h5 class="card-title fw-bold mt-1">${item.title || ''}</h5>
+          <p class="card-text text-muted text-truncate">${item.note || ''}</p>
         </div>
       </div>
     `;
@@ -67,15 +73,17 @@ onSnapshot(memoriesQuery, (snapshot) => {
     container.appendChild(element);
     index++;
   });
+}, (error) => {
+  console.error("Firestore Memories listener error:", error);
 });
 
 function openMemoryModal(id) {
   const item = loadedMemories.find(m => m.id === id);
   if (!item) return;
 
-  document.getElementById('memoryModalTitle').innerText = item.title;
-  document.getElementById('memoryModalDate').innerText = new Date(item.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-  document.getElementById('memoryModalNote').innerText = item.note;
+  document.getElementById('memoryModalTitle').innerText = item.title || 'Untitled';
+  document.getElementById('memoryModalDate').innerText = item.date ? new Date(item.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : '';
+  document.getElementById('memoryModalNote').innerText = item.note || '';
 
   const imgEl = document.getElementById('memoryModalImage');
   if (item.image) {
@@ -94,11 +102,16 @@ function openMemoryModal(id) {
     audioContainer.classList.add('d-none');
   }
 
-  bootstrap.Modal.getOrCreateInstance(document.getElementById('viewMemoryModal')).show();
+  getModalInstance('viewMemoryModal').show();
 }
 
+// Save Memory Form Handler
 document.getElementById('memoryForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  const submitBtn = document.getElementById('saveMemoryBtn');
+  submitBtn.disabled = true;
+  submitBtn.innerText = 'Saving...';
+
   try {
     await addDoc(collection(db, "memories"), {
       title: document.getElementById('memTitle').value,
@@ -110,9 +123,13 @@ document.getElementById('memoryForm').addEventListener('submit', async (e) => {
     });
     
     e.target.reset();
-    bootstrap.Modal.getInstance(document.getElementById('addMemoryModal')).hide();
+    getModalInstance('addMemoryModal').hide();
   } catch (err) {
     console.error("Error adding memory: ", err);
+    alert("Could not save memory. Please check your Firebase Firestore rules or console errors.");
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.innerText = 'Save Memory';
   }
 });
 
@@ -127,7 +144,7 @@ onSnapshot(capsulesQuery, (snapshot) => {
   today.setHours(0, 0, 0, 0);
 
   if (snapshot.empty) {
-    container.innerHTML = '<p class="text-center text-muted">No capsules created yet.</p>';
+    container.innerHTML = '<p class="text-center text-muted py-4">No capsules created yet.</p>';
     return;
   }
 
@@ -183,9 +200,10 @@ document.getElementById('capsuleForm').addEventListener('submit', async (e) => {
     });
 
     e.target.reset();
-    bootstrap.Modal.getInstance(document.getElementById('addCapsuleModal')).hide();
+    getModalInstance('addCapsuleModal').hide();
   } catch (err) {
     console.error("Error creating capsule: ", err);
+    alert("Error creating capsule: Check Firestore security rules.");
   }
 });
 
@@ -197,7 +215,7 @@ onSnapshot(bucketQuery, (snapshot) => {
   container.innerHTML = '';
 
   if (snapshot.empty) {
-    container.innerHTML = '<p class="text-center text-muted">No bucket list items added yet.</p>';
+    container.innerHTML = '<p class="text-center text-muted py-4">No bucket list items added yet.</p>';
     return;
   }
 
@@ -229,7 +247,7 @@ onSnapshot(bucketQuery, (snapshot) => {
 
 function promptCompleteGoal(id) {
   document.getElementById('completeBucketId').value = id;
-  bootstrap.Modal.getOrCreateInstance(document.getElementById('completeBucketModal')).show();
+  getModalInstance('completeBucketModal').show();
 }
 
 document.getElementById('completeBucketForm').addEventListener('submit', async (e) => {
@@ -245,9 +263,10 @@ document.getElementById('completeBucketForm').addEventListener('submit', async (
     });
 
     e.target.reset();
-    bootstrap.Modal.getInstance(document.getElementById('completeBucketModal')).hide();
+    getModalInstance('completeBucketModal').hide();
   } catch (err) {
     console.error("Error updating goal: ", err);
+    alert("Error updating goal: Check Firestore security rules.");
   }
 });
 
@@ -263,8 +282,9 @@ document.getElementById('bucketForm').addEventListener('submit', async (e) => {
     });
 
     e.target.reset();
-    bootstrap.Modal.getInstance(document.getElementById('addBucketModal')).hide();
+    getModalInstance('addBucketModal').hide();
   } catch (err) {
     console.error("Error adding goal: ", err);
+    alert("Error adding goal: Check Firestore security rules.");
   }
 });
