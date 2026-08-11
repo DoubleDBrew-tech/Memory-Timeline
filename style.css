@@ -8,7 +8,6 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Force iOS Safari to treat all elements as touchable */
 body {
   background-color: var(--bg-color);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -94,10 +93,11 @@ body {
   margin-bottom: 2rem;
 }
 
-/* Timeline */
+/* Timeline Layout */
 .timeline {
   position: relative;
   padding: 1rem 0;
+  min-height: 150px;
 }
 
 .timeline::before {
@@ -110,6 +110,16 @@ body {
   background: var(--secondary-color);
   transform: translateX(-50%);
   z-index: 1;
+}
+
+/* Empty State Message - Covers central line when empty */
+.empty-msg {
+  position: relative;
+  z-index: 5;
+  background-color: var(--bg-color);
+  padding: 0.5rem 1.5rem;
+  border-radius: 20px;
+  display: inline-block;
 }
 
 .timeline-item {
