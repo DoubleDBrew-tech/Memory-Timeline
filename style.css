@@ -8,11 +8,12 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Force iOS Safari to treat all elements as touchable */
 body {
   background-color: var(--bg-color);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   overflow-x: hidden;
-  position: relative;
+  cursor: pointer;
 }
 
 /* Welcome Overlay */
@@ -25,8 +26,7 @@ body {
   background: linear-gradient(135deg, #a29bfe 0%, #fd79a8 100%);
   z-index: 9999;
   overflow: hidden;
-  transition: opacity 0.4s ease, visibility 0.4s ease;
-  pointer-events: auto;
+  transition: opacity 0.4s ease;
 }
 
 .welcome-card {
@@ -85,13 +85,7 @@ body {
   }
 }
 
-/* Main Container Positioning */
-#mainApp {
-  position: relative;
-  z-index: 1;
-}
-
-/* Hero Header */
+/* Header */
 .hero-header {
   background: linear-gradient(135deg, #6c5ce7 0%, #fd79a8 100%);
   color: white;
@@ -100,7 +94,7 @@ body {
   margin-bottom: 2rem;
 }
 
-/* Timeline Layout */
+/* Timeline */
 .timeline {
   position: relative;
   padding: 1rem 0;
@@ -162,7 +156,7 @@ body {
   box-shadow: 0 8px 20px rgba(0,0,0,0.12) !important;
 }
 
-/* Capsule Cards */
+/* Capsules */
 .capsule-card.locked {
   background: #f1f2f6;
   border: 2px dashed #a4b0be;
