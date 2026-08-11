@@ -1,0 +1,94 @@
+:root {
+  --primary-color: #6c5ce7;
+  --secondary-color: #a29bfe;
+  --bg-color: #f8f9fa;
+}
+
+body {
+  background-color: var(--bg-color);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.hero-header {
+  background: linear-gradient(135deg, #6c5ce7 0%, #fd79a8 100%);
+  color: white;
+  padding: 3rem 1rem;
+  border-radius: 0 0 1.5rem 1.5rem;
+  margin-bottom: 2rem;
+}
+
+/* Timeline Custom CSS */
+.timeline {
+  position: relative;
+  padding: 1rem 0;
+}
+
+.timeline::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 4px;
+  background: var(--secondary-color);
+  transform: translateX(-50%);
+}
+
+.timeline-item {
+  position: relative;
+  margin-bottom: 2.5rem;
+  width: 50%;
+}
+
+.timeline-item.left {
+  left: 0;
+  padding-right: 2.5rem;
+}
+
+.timeline-item.right {
+  left: 50%;
+  padding-left: 2.5rem;
+}
+
+.timeline-node {
+  position: absolute;
+  top: 15px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--primary-color);
+  border: 4px solid #fff;
+  box-shadow: 0 0 0 2px var(--secondary-color);
+  z-index: 1;
+}
+
+.timeline-item.left .timeline-node { right: -10px; }
+.timeline-item.right .timeline-node { left: -10px; }
+
+.card-memory {
+  transition: transform 0.2s, box-shadow 0.2s;
+  cursor: pointer;
+}
+
+.card-memory:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.12) !important;
+}
+
+/* Capsule Styling */
+.capsule-card.locked {
+  background: #f1f2f6;
+  border: 2px dashed #a4b0be;
+}
+
+.capsule-card.unlocked {
+  background: #ffffff;
+  border: 2px solid #2ed573;
+}
+
+/* Mobile Responsive Timeline Adjustment */
+@media (max-width: 768px) {
+  .timeline::before { left: 20px; }
+  .timeline-item { width: 100%; left: 0 !important; padding-left: 3rem !important; padding-right: 0 !important; }
+  .timeline-item.left .timeline-node, .timeline-item.right .timeline-node { left: 10px; }
+}
