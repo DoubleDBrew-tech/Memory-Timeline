@@ -112,7 +112,7 @@ body {
   z-index: 1;
 }
 
-/* Empty State Message - Covers central line when empty */
+/* Fixes the purple line cutting through text */
 .empty-msg {
   position: relative;
   z-index: 5;
