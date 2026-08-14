@@ -90,7 +90,7 @@ function formatDateTime(value) {
       Do not use this mode for highly private media.
    ========================================================= */
 
-const GOOGLE_DRIVE_CLIENT_ID = "PASTE_YOUR_GOOGLE_OAUTH_WEB_CLIENT_ID_HERE";
+const GOOGLE_DRIVE_CLIENT_ID = "1035343182029-e5kbaep69kchplnenphatf83ggqojnsg.apps.googleusercontent.com";
 const GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 const DRIVE_FOLDER_NAME = "Memory Vault Media";
 
