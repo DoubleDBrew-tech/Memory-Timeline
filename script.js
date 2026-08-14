@@ -106,7 +106,7 @@ const driveState = {
 function openGoogleDriveSetup() {
   const config = getSavedDriveConfig();
   if ($("googleDriveClientIdInput")) $("googleDriveClientIdInput").value =
-    config.clientId && !config.clientId.includes("1035343182029-e5kbaep69kchplnenphatf83ggqojnsg.apps.googleusercontent.com") ? config.clientId : "";
+    config.clientId && !config.clientId.includes("PASTE_YOUR_") ? config.clientId : "";
   if ($("googleDriveFolderNameInput")) $("googleDriveFolderNameInput").value =
     config.folderName || DRIVE_FOLDER_NAME;
   showModal("driveSetupModal");
@@ -124,8 +124,13 @@ function setDriveStatus(connected, text) {
 
 function getSavedDriveConfig() {
   try {
+    const savedClientId = (localStorage.getItem("memoryVaultGoogleClientId") || "").trim();
+    const validSavedClientId =
+      /^[0-9]+-[a-z0-9_-]+\\.apps\\.googleusercontent\\.com$/i.test(savedClientId);
+
     return {
-      clientId: localStorage.getItem("memoryVaultGoogleClientId") || GOOGLE_DRIVE_CLIENT_ID,
+      // Ignore stale placeholders or malformed saved IDs.
+      clientId: validSavedClientId ? savedClientId : GOOGLE_DRIVE_CLIENT_ID,
       folderName: localStorage.getItem("memoryVaultGoogleFolderName") || DRIVE_FOLDER_NAME
     };
   } catch {
@@ -144,7 +149,7 @@ function driveIsAuthorized() {
 
 function initGoogleDriveClient() {
   const config = getSavedDriveConfig();
-  if (!config.clientId || config.clientId.includes("1035343182029-e5kbaep69kchplnenphatf83ggqojnsg.apps.googleusercontent.com")) {
+  if (!config.clientId || config.clientId.includes("PASTE_YOUR_")) {
     setDriveStatus(false, "Client ID required");
     return false;
   }
@@ -179,7 +184,7 @@ let driveTokenPromise = null;
 
 async function connectGoogleDrive(forcePrompt = false) {
   const config = getSavedDriveConfig();
-  if (!config.clientId || config.clientId.includes("1035343182029-e5kbaep69kchplnenphatf83ggqojnsg.apps.googleusercontent.com")) {
+  if (!config.clientId || config.clientId.includes("PASTE_YOUR_")) {
     openGoogleDriveSetup();
     return false;
   }
@@ -239,7 +244,7 @@ async function connectGoogleDrive(forcePrompt = false) {
 
 async function restoreGoogleDriveConnection() {
   const config = getSavedDriveConfig();
-  if (!config.clientId || config.clientId.includes("1035343182029-e5kbaep69kchplnenphatf83ggqojnsg.apps.googleusercontent.com")) return false;
+  if (!config.clientId || config.clientId.includes("PASTE_YOUR_")) return false;
   if (!window.google?.accounts?.oauth2) return false;
   if (!driveState.client) initGoogleDriveClient();
   if (!driveState.client || driveIsAuthorized()) return driveIsAuthorized();
@@ -1400,18 +1405,21 @@ function publishPlaybackResume() {
    ========================================================= */
 
 
-$("connectDriveBtn")?.addEventListener("click", async () => {
-  const config = getSavedDriveConfig();
-  if (!config.clientId || config.clientId.includes("1035343182029-e5kbaep69kchplnenphatf83ggqojnsg.apps.googleusercontent.com")) {
-    openGoogleDriveSetup();
-    return;
-  }
+$("connectDriveBtn")?.addEventListener("click", async event => {
+  event.preventDefault();
 
   try {
+    const ready = await waitForGoogleDriveReady();
+    if (!ready) throw new Error("Google authorization is still loading.");
+
     const ok = await connectGoogleDrive(true);
-    if (ok) setDriveStatus(true, "Connected");
+    if (ok) {
+      await ensureDriveFolder();
+      setDriveStatus(true, "Connected");
+    }
   } catch (error) {
-    console.error(error);
+    console.error("Google Drive connection failed:", error);
+    setDriveStatus(false, "Connection failed");
     alert(`Unable to connect Google Drive.\n\n${error.message}`);
   }
 });
@@ -1420,7 +1428,7 @@ $("saveDriveSetupBtn")?.addEventListener("click", async () => {
   const clientId = $("googleDriveClientIdInput").value.trim();
   const folderName = $("googleDriveFolderNameInput").value.trim() || DRIVE_FOLDER_NAME;
 
-  if (!clientId || !clientId.endsWith(".apps.googleusercontent.com")) {
+  if (!/^[0-9]+-[a-z0-9_-]+\.apps\.googleusercontent\.com$/i.test(clientId)) {
     alert("Enter your Google OAuth Web Client ID.");
     return;
   }
@@ -1446,19 +1454,40 @@ $("saveDriveSetupBtn")?.addEventListener("click", async () => {
 });
 
 // Wait for Google Identity Services if the script loads after this module.
-function waitForGoogleDrive() {
-  if (window.google?.accounts?.oauth2) {
-    const config = getSavedDriveConfig();
-    if (config.clientId && !config.clientId.includes("1035343182029-e5kbaep69kchplnenphatf83ggqojnsg.apps.googleusercontent.com")) {
-      initGoogleDriveClient();
-      setDriveStatus(false, "Ready to connect");
-    } else {
-      setDriveStatus(false, "Client ID required");
-    }
+function waitForGoogleDriveReady(timeoutMs = 15000) {
+  if (window.google?.accounts?.oauth2) return Promise.resolve(true);
+
+  return new Promise(resolve => {
+    const started = Date.now();
+    const timer = setInterval(() => {
+      if (window.google?.accounts?.oauth2) {
+        clearInterval(timer);
+        resolve(true);
+      } else if (Date.now() - started >= timeoutMs) {
+        clearInterval(timer);
+        resolve(false);
+      }
+    }, 100);
+  });
+}
+
+async function waitForGoogleDrive() {
+  const ready = await waitForGoogleDriveReady();
+
+  if (!ready) {
+    setDriveStatus(false, "Google authorization unavailable");
     return;
   }
-  setTimeout(waitForGoogleDrive, 250);
+
+  const config = getSavedDriveConfig();
+  if (config.clientId && !config.clientId.includes("PASTE_YOUR_")) {
+    initGoogleDriveClient();
+    setDriveStatus(false, "Ready to connect");
+  } else {
+    setDriveStatus(false, "Client ID required");
+  }
 }
+
 waitForGoogleDrive();
 
 
@@ -1475,7 +1504,7 @@ setTimeout(async () => {
   if (!driveState.connected) {
     setDriveStatus(
       false,
-      config.clientId && !config.clientId.includes("1035343182029-e5kbaep69kchplnenphatf83ggqojnsg.apps.googleusercontent.com")
+      config.clientId && !config.clientId.includes("PASTE_YOUR_")
         ? "Ready to connect"
         : "Client ID required"
     );
