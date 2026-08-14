@@ -24,9 +24,15 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-let loadedMemories = [];
-
 // Helper functions for Bootstrap Modal management
+function showModal(modalId) {
+  const el = document.getElementById(modalId);
+  if (el && window.bootstrap) {
+    const modal = window.bootstrap.Modal.getOrCreateInstance(el);
+    modal.show();
+  }
+}
+
 function hideModal(modalId) {
   const el = document.getElementById(modalId);
   if (el && window.bootstrap) {
@@ -35,13 +41,17 @@ function hideModal(modalId) {
   }
 }
 
-function showModal(modalId) {
-  const el = document.getElementById(modalId);
-  if (el && window.bootstrap) {
-    const modal = window.bootstrap.Modal.getOrCreateInstance(el);
-    modal.show();
-  }
-}
+// =========================================================
+// CRITICAL FIX: EXPLICIT BUTTON LISTENERS FOR MOBILE/IPAD
+// =========================================================
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("btnOpenAddMemory").addEventListener("click", () => showModal("addMemoryModal"));
+  document.getElementById("btnOpenAddCapsule").addEventListener("click", () => showModal("addCapsuleModal"));
+  document.getElementById("btnOpenAddGoal").addEventListener("click", () => showModal("addBucketModal"));
+});
+// =========================================================
+
+let loadedMemories = [];
 
 // -------------------------------------------------------------
 // 1. TIMELINE MODULE
