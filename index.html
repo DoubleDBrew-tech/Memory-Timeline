@@ -221,8 +221,9 @@
             <div class="row g-3">
               <div class="col-md-6">
                 <label class="form-label fw-semibold"><i class="bi bi-image me-1"></i>Photo</label>
-                <input type="file" id="memImage" class="form-control" accept="image/*">
-                <img id="memoryImagePreview" class="img-fluid rounded-3 mt-2 d-none media-preview" alt="Photo preview">
+                <input type="file" id="memImage" class="form-control" accept="image/*" multiple>
+                <div id="memoryImagePreviewList" class="row g-2 mt-2"></div>
+                <div class="form-text">Select multiple photos. They will appear as a swipeable album in this memory.</div>
               </div>
               <div class="col-md-6">
                 <label class="form-label fw-semibold"><i class="bi bi-camera-video me-1"></i>Video</label>
@@ -277,8 +278,9 @@
         </div>
         <div class="modal-body">
           <small id="memoryModalDate" class="text-primary fw-bold d-block mb-2"></small>
-          <div id="memoryModalMedia"></div>
+          <div id="memoryModalMedia" class="memory-viewer-media"></div>
           <p id="memoryModalNote" class="text-secondary mb-3" style="white-space:pre-line"></p>
+          <div class="small text-muted mt-2" id="memoryPlaybackHint"><i class="bi bi-hand-index-thumb me-1"></i>Tap the photo/video to pause the memory audio. Swipe to move through the album.</div>
           <div id="memoryModalAudioContainer" class="d-none">
             <label class="form-label fw-bold small text-muted"><i class="bi bi-music-note-beamed"></i> Audio</label>
             <audio id="memoryModalAudio" controls class="w-100"></audio>
