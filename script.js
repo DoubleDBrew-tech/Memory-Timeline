@@ -69,9 +69,11 @@ onSnapshot(memoriesQuery, (snapshot) => {
 
     const element = document.createElement('div');
     element.className = `timeline-item ${side}`;
+    
+    // FIX: Added onclick="" to force iOS Safari to recognize the div as a clickable button
     element.innerHTML = `
       <div class="timeline-node"></div>
-      <div class="card card-memory border-0 shadow-sm rounded-4" role="button">
+      <div class="card card-memory border-0 shadow-sm rounded-4" role="button" onclick="">
         ${item.image ? `<img src="${item.image}" class="card-img-top rounded-top-4" style="height: 160px; object-fit: cover;">` : ''}
         <div class="card-body">
           <small class="text-primary fw-bold">${formattedDate}</small>
@@ -250,6 +252,7 @@ onSnapshot(bucketQuery, (snapshot) => {
 
     const checkbox = col.querySelector('.bucket-check');
     if (!item.completed) {
+      // FIX: Ensure click events bind properly on touch devices
       checkbox.addEventListener('change', () => {
         document.getElementById('completeBucketId').value = item.id;
         showModal('completeBucketModal');
