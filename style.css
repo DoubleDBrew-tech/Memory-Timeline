@@ -316,3 +316,110 @@ main {
   }
 
 }
+
+/* =========================================================
+   REALTIME SYNC STATUS
+   ========================================================= */
+
+.sync-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+
+  padding: 6px 12px;
+
+  border-radius: 999px;
+
+  background: rgba(255, 255, 255, 0.18);
+
+  backdrop-filter: blur(8px);
+
+  font-size: 0.82rem;
+
+  font-weight: 600;
+}
+
+.sync-dot {
+  width: 8px;
+  height: 8px;
+
+  border-radius: 50%;
+
+  background: #f1c40f;
+
+  display: inline-block;
+}
+
+.sync-dot.online {
+  background: #2ecc71;
+
+  box-shadow:
+    0 0 0 4px
+    rgba(46, 204, 113, 0.18);
+}
+
+.sync-dot.error {
+  background: #e74c3c;
+
+  box-shadow:
+    0 0 0 4px
+    rgba(231, 76, 60, 0.18);
+}
+
+
+/* =========================================================
+   FILE UPLOAD
+   ========================================================= */
+
+input[type="file"] {
+  cursor: pointer;
+}
+
+input[type="file"]::file-selector-button {
+  border: 0;
+
+  background: var(--primary);
+
+  color: white;
+
+  border-radius: 999px;
+
+  padding: 7px 12px;
+
+  margin-right: 10px;
+
+  cursor: pointer;
+}
+
+
+/* =========================================================
+   UPLOAD PREVIEW
+   ========================================================= */
+
+#memoryImagePreview,
+#completePhotoPreview {
+  display: block;
+
+  width: 100%;
+
+  border: 2px solid rgba(108, 92, 231, 0.12);
+
+  background: #f8f9fa;
+}
+
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 576px) {
+
+  .sync-status {
+    font-size: 0.75rem;
+  }
+
+  input[type="file"] {
+    font-size: 0.85rem;
+  }
+
+}
