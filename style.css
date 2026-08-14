@@ -5,138 +5,314 @@
   --bg-color: #f8f9fa;
 }
 
-/* Touch responsiveness optimization for iOS/Android */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
-  -webkit-tap-highlight-color: transparent; /* Removes blue highlight on tap */
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  min-height: 100%;
 }
 
 body {
+  margin: 0;
   background-color: var(--bg-color);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
+
   color: #2d3436;
+  -webkit-text-size-adjust: 100%;
 }
 
-/* Ensure header buttons sit above other elements */
+/* =========================================================
+   TOUCH / CLICK FIX
+   ========================================================= */
+
+button,
+.btn,
+.nav-link,
+.card,
+input[type="checkbox"],
+select {
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+/*
+   Keep the actual content above decorative layers.
+*/
+
+.welcome-section,
+main {
+  position: relative;
+  z-index: 1;
+}
+
+#appTabs {
+  position: relative;
+  z-index: 100;
+}
+
+#appTabs .nav-link,
+.touch-safe-header,
+.touch-safe-header button {
+  position: relative;
+  z-index: 101;
+  pointer-events: auto;
+}
+
 .touch-safe-header {
   position: relative;
   z-index: 90;
 }
+
 .touch-btn {
   position: relative;
-  z-index: 100; 
+  z-index: 100;
 }
 
-/* Make sure interactable items register native cursor pointers */
-button, .btn, .nav-link, .card, input[type="checkbox"] {
-  cursor: pointer;
-}
+/* =========================================================
+   HEADER
+   ========================================================= */
 
-/* Header Banner */
 .welcome-section {
-  background: linear-gradient(135deg, var(--primary) 0%, var(--accent-pink) 100%);
-  border-radius: 0 0 2rem 2rem;
+  background:
+    linear-gradient(
+      135deg,
+      var(--primary) 0%,
+      var(--accent-pink) 100%
+    );
+
+  border-radius:
+    0 0 2rem 2rem;
 }
 
 .heart-pulse {
   font-size: 3rem;
   display: inline-block;
-  animation: pulse 1.8s infinite ease-in-out;
+  animation:
+    pulse 1.8s infinite ease-in-out;
 }
 
 @keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.15); }
+
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.15);
+  }
+
 }
 
 .max-width-600 {
   max-width: 600px;
 }
 
-/* Timeline Components */
+/* =========================================================
+   TIMELINE
+   ========================================================= */
+
 .timeline {
   position: relative;
   padding: 1rem 0;
   min-height: 120px;
 }
 
+/*
+   IMPORTANT:
+   This is only a visual line.
+   It must NEVER receive touches/clicks.
+*/
+
 .timeline::before {
-  content: '';
+  content: "";
+
   position: absolute;
+
   top: 0;
   bottom: 0;
+
   left: 50%;
+
   width: 3px;
-  background: var(--primary-light);
-  transform: translateX(-50%);
-  z-index: 1;
+
+  background:
+    var(--primary-light);
+
+  transform:
+    translateX(-50%);
+
+  z-index: 0;
+
+  pointer-events: none;
 }
 
 .timeline-item {
   position: relative;
+
   margin-bottom: 2rem;
+
   width: 50%;
+
   z-index: 2;
 }
 
 .timeline-item.left {
   left: 0;
+
   padding-right: 2rem;
 }
 
 .timeline-item.right {
   left: 50%;
+
   padding-left: 2rem;
 }
 
 .timeline-node {
   position: absolute;
+
   top: 15px;
+
   width: 16px;
   height: 16px;
+
   border-radius: 50%;
-  background: var(--primary);
-  border: 3px solid #fff;
-  box-shadow: 0 0 0 2px var(--primary-light);
+
+  background:
+    var(--primary);
+
+  border:
+    3px solid #fff;
+
+  box-shadow:
+    0 0 0 2px var(--primary-light);
+
   z-index: 3;
+
+  pointer-events: none;
 }
 
-.timeline-item.left .timeline-node { right: -8px; }
-.timeline-item.right .timeline-node { left: -8px; }
+.timeline-item.left .timeline-node {
+  right: -8px;
+}
+
+.timeline-item.right .timeline-node {
+  left: -8px;
+}
+
+/* Timeline card is an actual clickable button */
 
 .card-memory {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  display: block;
+
+  border: 0;
+
+  position: relative;
+
+  z-index: 4;
+
+  pointer-events: auto;
+
+  background: #fff;
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
-.card-memory:active, .card-memory:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08) !important;
+.card-memory:active,
+.card-memory:hover {
+  transform:
+    translateY(-3px);
+
+  box-shadow:
+    0 8px 20px
+    rgba(0, 0, 0, 0.08) !important;
 }
 
-/* Capsules */
+/* =========================================================
+   CAPSULES
+   ========================================================= */
+
 .capsule-card.locked {
   background: #f1f2f6;
-  border: 2px dashed #b2bec3;
+
+  border:
+    2px dashed #b2bec3;
 }
 
 .capsule-card.unlocked {
-  background: #ffffff;
-  border: 2px solid #2ed573;
+  background: #fff;
+
+  border:
+    2px solid #2ed573;
 }
 
-/* Mobile Responsive Adjustments */
+/* =========================================================
+   MODAL CLICK / Z-INDEX FIX
+   ========================================================= */
+
+.modal {
+  z-index: 2000;
+}
+
+.modal-backdrop {
+  z-index: 1990;
+}
+
+.modal-dialog,
+.modal-content {
+  position: relative;
+
+  z-index: 2001;
+}
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
 @media (max-width: 768px) {
+
   .timeline::before {
     left: 18px;
   }
+
   .timeline-item {
     width: 100%;
+
     left: 0 !important;
-    padding-left: 2.5rem !important;
-    padding-right: 0 !important;
+
+    padding-left:
+      2.5rem !important;
+
+    padding-right:
+      0 !important;
   }
+
   .timeline-item.left .timeline-node,
   .timeline-item.right .timeline-node {
     left: 10px;
   }
+
+  .touch-safe-header {
+    gap: 1rem;
+  }
+
+  .touch-safe-header button {
+    flex-shrink: 0;
+  }
+
 }
