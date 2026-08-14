@@ -228,7 +228,7 @@ input[type="file"]::file-selector-button {
 .drive-audio-player { width: 100%; }
 
 /* =========================================================
-   MULTI-PHOTO MEMORY VIEWER
+   MULTI-PHOTO MEMORY VIEWERe
    ========================================================= */
 .memory-viewer-media { min-height: 240px; }
 .memory-media-carousel { background: #111; border-radius: 1rem; overflow: hidden; }
