@@ -259,27 +259,66 @@ async function ensureDriveFolder() {
 }
 
 function drivePublicUrl(fileId) {
-  return fileId
-    ? `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`
-    : "";
+  return fileId ? `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}` : "";
+}
+
+// Drive's normal download URL is not a reliable <img>/<video> source.
+// Retrieve media through the authenticated Drive API and turn it into a local blob URL.
+const driveObjectUrls = new Map();
+
+async function getDriveMediaObjectUrl(fileId) {
+  if (!fileId) return "";
+  if (driveObjectUrls.has(fileId)) return driveObjectUrls.get(fileId);
+  const response = await driveFetch(
+    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`,
+    { method: "GET" }
+  );
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  driveObjectUrls.set(fileId, objectUrl);
+  return objectUrl;
+}
+
+function revokeDriveObjectUrl(fileId) {
+  const url = driveObjectUrls.get(fileId);
+  if (url) { URL.revokeObjectURL(url); driveObjectUrls.delete(fileId); }
+}
+
+async function hydrateDriveMedia(root = document) {
+  const nodes = root.querySelectorAll?.('[data-drive-media-id]') || [];
+  for (const node of nodes) {
+    const fileId = node.dataset.driveMediaId;
+    const kind = node.dataset.driveMediaType;
+    if (!fileId || node.dataset.hydrated === "1") continue;
+    node.dataset.hydrated = "1";
+    try {
+      const url = await getDriveMediaObjectUrl(fileId);
+      if (kind === "image") {
+        node.outerHTML = `<img src="${escapeHtml(url)}" class="img-fluid rounded-4 drive-media-image" alt="" loading="lazy">`;
+      } else if (kind === "video") {
+        node.outerHTML = `<video src="${escapeHtml(url)}" class="w-100 rounded-4 drive-media-video" controls playsinline preload="metadata"></video>`;
+      } else if (kind === "audio") {
+        node.outerHTML = `<audio src="${escapeHtml(url)}" controls class="w-100 drive-audio-player"></audio>`;
+      }
+    } catch (error) {
+      console.error("Unable to load Google Drive media", fileId, error);
+      node.dataset.hydrated = "0";
+      node.innerHTML = `<div class="alert alert-light border small mb-0"><i class="bi bi-cloud-exclamation me-1"></i>Google Drive media could not be loaded. Connect Google Drive on this device.</div>`;
+    }
+  }
 }
 
 async function makeDriveFileViewable(fileId) {
-  // Required for <img>/<video> elements to access media without
-  // attaching an OAuth Authorization header.
-  const response = await driveFetch(
-    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions`,
-    {
+  // Keep the old public permission for compatibility. Rendering no longer relies on it.
+  try {
+    await driveFetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: "anyone",
-        role: "reader"
-      })
-    }
-  );
-
-  return response.ok;
+      body: JSON.stringify({ type: "anyone", role: "reader" })
+    });
+  } catch (error) {
+    console.warn("Public Drive permission was not created; authenticated media will still work.", error);
+  }
 }
 
 function uploadToDrive(file, folderName, onProgress = () => {}) {
@@ -424,187 +463,103 @@ subscribe("countdowns", "countdowns", "targetDate", renderCountdowns);
    ========================================================= */
 
 function mediaMarkup(item, mode = "card") {
-  const image = safeUrl(item.image);
-  const video = safeUrl(item.video);
-  if (mode === "gallery") {
-    if (video) return `<video src="${escapeHtml(video)}" controls playsinline preload="metadata"></video>`;
-    if (image) return `<img src="${escapeHtml(image)}" class="media-thumb" loading="lazy" alt="">`;
-    return `<div class="d-flex align-items-center justify-content-center rounded-4 bg-light media-thumb"><i class="bi bi-file-earmark fs-1 text-muted"></i></div>`;
-  }
-  let out = "";
-  if (image) out += `<img src="${escapeHtml(image)}" class="card-img-top rounded-top-4" style="height:180px;object-fit:cover" alt="" loading="lazy">`;
-  if (video) out += `<video src="${escapeHtml(video)}" class="w-100 rounded-top-4" style="height:180px;object-fit:cover" controls playsinline preload="metadata"></video>`;
-  return out;
+  const imageId = item.imagePath || "";
+  const videoId = item.videoPath || "";
+  const image = imageId ? `<div class="drive-media-placeholder" data-drive-media-id="${escapeHtml(imageId)}" data-drive-media-type="image"><div class="text-muted small p-4 text-center"><i class="bi bi-image fs-2 d-block mb-1"></i>Loading photo…</div></div>` : "";
+  const video = videoId ? `<div class="drive-media-placeholder" data-drive-media-id="${escapeHtml(videoId)}" data-drive-media-type="video"><div class="text-muted small p-4 text-center"><i class="bi bi-camera-video fs-2 d-block mb-1"></i>Loading video…</div></div>` : "";
+  if (mode === "gallery") return `${video}${image}` || `<div class="d-flex align-items-center justify-content-center rounded-4 bg-light media-thumb"><i class="bi bi-file-earmark fs-1 text-muted"></i></div>`;
+  return `${image}${video}`;
 }
 
 function renderTimeline() {
   const container = $("timelineContainer");
   if (!container) return;
   container.innerHTML = "";
-
-  if (!state.memories.length) {
-    container.innerHTML = `<div class="text-center py-5 text-muted">No memories yet. Add your first one! 💜</div>`;
-    return;
-  }
-
+  if (!state.memories.length) { container.innerHTML = `<div class="text-center py-5 text-muted">No memories yet. Add your first one! 💜</div>`; return; }
   state.memories.forEach((item, index) => {
-    const side = index % 2 === 0 ? "left" : "right";
     const el = document.createElement("div");
-    el.className = `timeline-item ${side}`;
+    el.className = `timeline-item ${index % 2 === 0 ? "left" : "right"}`;
     el.innerHTML = `
       <div class="timeline-node" aria-hidden="true"></div>
-      <button type="button" class="card card-memory shadow-sm rounded-4 text-start w-100 p-0">
-        ${mediaMarkup(item)}
+      <div class="card card-memory shadow-sm rounded-4 text-start w-100 p-0 overflow-hidden">
+        <div class="memory-media-wrap">${mediaMarkup(item)}</div>
         <div class="card-body">
-          <small class="text-primary fw-bold">${escapeHtml(formatDate(item.date))}</small>
-          <h5 class="card-title fw-bold mt-1 mb-1">${escapeHtml(item.title)}</h5>
-          <p class="card-text text-muted text-truncate mb-0">${escapeHtml(item.note)}</p>
+          <button type="button" class="btn btn-link p-0 text-decoration-none text-start w-100 memory-open">
+            <small class="text-primary fw-bold">${escapeHtml(formatDate(item.date))}</small>
+            <h5 class="card-title fw-bold mt-1 mb-1">${escapeHtml(item.title)}</h5>
+            <p class="card-text text-muted text-truncate mb-0">${escapeHtml(item.note)}</p>
+          </button>
           <div class="mt-2 d-flex gap-2 small text-muted">
-            ${item.image ? '<span><i class="bi bi-image"></i> Photo</span>' : ''}
-            ${item.video ? '<span><i class="bi bi-camera-video"></i> Video</span>' : ''}
-            ${item.audio ? '<span><i class="bi bi-music-note"></i> Audio</span>' : ''}
+            ${item.imagePath ? '<span><i class="bi bi-image"></i> Photo</span>' : ''}
+            ${item.videoPath ? '<span><i class="bi bi-camera-video"></i> Video</span>' : ''}
+            ${(item.audio || item.audioPath) ? '<span><i class="bi bi-music-note"></i> Audio</span>' : ''}
           </div>
         </div>
-      </button>`;
-    el.querySelector(".card-memory").addEventListener("click", () => viewMemory(item.id));
+      </div>`;
+    el.querySelector(".memory-open").addEventListener("click", () => viewMemory(item.id));
     container.appendChild(el);
+    hydrateDriveMedia(el).catch(console.error);
   });
 }
 
-function viewMemory(id) {
+async function viewMemory(id) {
   const item = state.memories.find(x => x.id === id);
   if (!item) return;
   state.currentMemoryId = id;
-
   $("memoryModalTitle").textContent = item.title || "Untitled";
   $("memoryModalDate").textContent = formatDate(item.date);
   $("memoryModalNote").textContent = item.note || "";
-
   const media = $("memoryModalMedia");
-  media.innerHTML = "";
-  if (item.image) media.insertAdjacentHTML("beforeend", `<img src="${escapeHtml(safeUrl(item.image))}" class="img-fluid rounded-4 w-100 mb-3" style="max-height:420px;object-fit:contain" alt="">`);
-  if (item.video) media.insertAdjacentHTML("beforeend", `<video src="${escapeHtml(safeUrl(item.video))}" class="w-100 rounded-4 mb-3" controls playsinline></video>`);
-
+  media.innerHTML = mediaMarkup(item);
+  showModal("viewMemoryModal");
+  await hydrateDriveMedia(media);
   const audio = $("memoryModalAudio");
   const audioBox = $("memoryModalAudioContainer");
-  const audioUrl = safeUrl(item.audio);
-  if (audioUrl) {
-    audio.src = audioUrl;
+  audioBox.classList.add("d-none");
+  audio.pause(); audio.removeAttribute("src"); audio.load();
+  const old = audioBox.querySelector(".drive-audio-player");
+  if (old) old.remove();
+  if (item.audioPath) {
+    audio.classList.add("d-none");
     audioBox.classList.remove("d-none");
-  } else {
-    audio.pause(); audio.removeAttribute("src"); audio.load(); audioBox.classList.add("d-none");
+    const placeholder = document.createElement("div");
+    placeholder.dataset.driveMediaId = item.audioPath;
+    placeholder.dataset.driveMediaType = "audio";
+    audioBox.appendChild(placeholder);
+    await hydrateDriveMedia(audioBox);
+  } else if (safeUrl(item.audio)) {
+    audio.src = safeUrl(item.audio);
+    audio.classList.remove("d-none");
+    audioBox.classList.remove("d-none");
   }
-  showModal("viewMemoryModal");
 }
 
 $("editMemoryBtn").addEventListener("click", () => {
   const item = state.memories.find(x => x.id === state.currentMemoryId);
   if (!item) return;
-  hideModal("viewMemoryModal");
-  openMemoryEditor(item);
+  hideModal("viewMemoryModal"); openMemoryEditor(item);
 });
-
 $("deleteMemoryBtn").addEventListener("click", async () => {
   const item = state.memories.find(x => x.id === state.currentMemoryId);
   if (!item) return;
-  await deleteRecord("memories", item);
-  hideModal("viewMemoryModal");
-});
-
-function openMemoryEditor(item = null) {
-  $("memoryForm").reset();
-  $("memoryId").value = item?.id || "";
-  $("memoryExistingImage").value = item?.image || "";
-  $("memoryExistingVideo").value = item?.video || "";
-  $("memoryExistingImagePath").value = item?.imagePath || "";
-  $("memoryExistingVideoPath").value = item?.videoPath || "";
-  $("memoryFormTitle").textContent = item ? "Edit Memory" : "Add New Memory";
-  $("saveMemoryBtn").innerHTML = item ? '<i class="bi bi-check2 me-1"></i>Update Memory' : '<i class="bi bi-cloud-arrow-up me-1"></i>Save Memory';
-  if (item) {
-    $("memTitle").value = item.title || "";
-    $("memDate").value = item.date || "";
-    $("memAudio").value = item.audio || "";
-    $("memNote").value = item.note || "";
-  }
-  showModal("memoryModal");
-}
-
-document.querySelector('[data-bs-target="#memoryModal"]').addEventListener("click", () => openMemoryEditor());
-
-$("memoryForm").addEventListener("submit", async event => {
-  event.preventDefault();
-  const button = $("saveMemoryBtn");
-  button.disabled = true;
-  try {
-    const id = $("memoryId").value;
-    let image = { url: $("memoryExistingImage").value, path: $("memoryExistingImagePath").value };
-    let video = { url: $("memoryExistingVideo").value, path: $("memoryExistingVideoPath").value };
-
-    const imageFile = $("memImage").files?.[0];
-    const videoFile = $("memVideo").files?.[0];
-
-    if (imageFile) {
-      setUploadProgress(0, "Uploading photo...");
-      image = await uploadToDrive(imageFile, "memories/photos", p => setUploadProgress(p, "Uploading photo..."));
-    }
-    if (videoFile) {
-      setUploadProgress(0, "Uploading video...");
-      video = await uploadToDrive(videoFile, "memories/videos", p => setUploadProgress(p, "Uploading large video..."));
-    }
-
-    const payload = {
-      title: $("memTitle").value.trim(),
-      date: $("memDate").value,
-      image: image.url || "",
-      imagePath: image.path || "",
-      video: video.url || "",
-      videoPath: video.path || "",
-      audio: $("memAudio").value.trim(),
-      note: $("memNote").value.trim(),
-      updatedAt: serverTimestamp()
-    };
-
-    if (id) {
-      await updateDoc(doc(db, "memories", id), payload);
-      if (imageFile) await removeDriveFile($("memoryExistingImagePath").value);
-      if (videoFile) await removeDriveFile($("memoryExistingVideoPath").value);
-    } else {
-      await addDoc(collection(db, "memories"), { ...payload, createdAt: serverTimestamp() });
-    }
-
-    event.target.reset();
-    resetUploadProgress();
-    hideModal("memoryModal");
-  } catch (error) {
-    console.error(error);
-    alert(`Unable to save memory.\n\n${error.message}`);
-  } finally {
-    button.disabled = false;
-    resetUploadProgress();
-  }
+  await deleteRecord("memories", item); hideModal("viewMemoryModal");
 });
 
 function renderGallery() {
   const container = $("galleryContainer");
   if (!container) return;
-  const mediaItems = state.memories.filter(x => x.image || x.video);
+  const mediaItems = [
+    ...state.memories.filter(x => x.imagePath || x.videoPath).map(x => ({...x, mediaSource: "Memory"})),
+    ...state.bucketList.filter(x => x.photoPath).map(x => ({...x, imagePath: x.photoPath, videoPath: "", mediaSource: "Bucket celebration"}))
+  ];
   container.innerHTML = mediaItems.length ? mediaItems.map(item => `
-    <div class="col-6 col-md-4 col-lg-3 gallery-item">
-      <div class="card border-0 shadow-sm rounded-4 p-2 h-100">
-        ${mediaMarkup(item, "gallery")}
-        <div class="pt-2 px-1">
-          <div class="fw-semibold text-truncate">${escapeHtml(item.title)}</div>
-          <small class="text-muted">${escapeHtml(formatDate(item.date))}</small>
-        </div>
-      </div>
-    </div>`).join("") :
-    `<div class="col-12 text-center text-muted py-5">No photos or videos uploaded yet.</div>`;
+    <div class="col-6 col-md-4 col-lg-3 gallery-item"><div class="card border-0 shadow-sm rounded-4 p-2 h-100">
+      ${mediaMarkup(item, "gallery")}
+      <div class="pt-2 px-1"><div class="fw-semibold text-truncate">${escapeHtml(item.title)}</div><small class="text-muted">${escapeHtml(item.mediaSource || "Media")}</small></div>
+    </div></div>`).join("") : `<div class="col-12 text-center text-muted py-5">No photos or videos uploaded yet.</div>`;
+  hydrateDriveMedia(container).catch(console.error);
 }
-
-$("openGalleryBtn").addEventListener("click", () => {
-  renderGallery();
-  showModal("galleryModal");
-});
+$("openGalleryBtn").addEventListener("click", () => { renderGallery(); showModal("galleryModal"); });
 
 /* =========================================================
    CAPSULES / LETTERS
@@ -698,7 +653,7 @@ function renderBucketList() {
           <div class="flex-grow-1">
             <span class="badge bg-light text-dark border mb-1">${escapeHtml(item.category)}</span>
             <h6 class="fw-bold mb-1 ${item.completed ? "text-decoration-line-through text-muted" : ""}">${escapeHtml(item.title)}</h6>
-            ${item.photo ? `<img src="${escapeHtml(safeUrl(item.photo))}" class="img-fluid rounded-3 mt-2" style="max-height:180px;object-fit:cover;width:100%" alt="">` : ""}
+            ${item.photoPath ? `<div class="mt-2 drive-media-placeholder rounded-3" data-drive-media-id="${escapeHtml(item.photoPath)}" data-drive-media-type="image"><div class="text-muted small p-3 text-center">Loading celebration photo…</div></div>` : ""}
             <div class="d-flex gap-2 mt-3">
               <button class="btn btn-sm btn-outline-primary rounded-pill edit-bucket"><i class="bi bi-pencil"></i></button>
               <button class="btn btn-sm btn-outline-danger rounded-pill delete-bucket"><i class="bi bi-trash"></i></button>
@@ -718,6 +673,7 @@ function renderBucketList() {
     col.querySelector(".edit-bucket").addEventListener("click", () => openBucketEditor(item));
     col.querySelector(".delete-bucket").addEventListener("click", () => deleteRecord("bucketList", item));
     container.appendChild(col);
+    hydrateDriveMedia(col).catch(console.error);
   });
 }
 
@@ -1006,8 +962,10 @@ async function deleteRecord(collectionName, item) {
   try {
     await deleteDoc(doc(db, collectionName, item.id));
     if (item.imagePath) await removeDriveFile(item.imagePath);
-    if (item.videoPath) await removeDriveFile(item.videoPath);
-    if (item.photoPath) await removeDriveFile(item.photoPath);
+    if (item.videoPath) { revokeDriveObjectUrl(item.videoPath); await removeDriveFile(item.videoPath); }
+    if (item.audioPath) { revokeDriveObjectUrl(item.audioPath); await removeDriveFile(item.audioPath); }
+    if (item.imagePath) revokeDriveObjectUrl(item.imagePath);
+    if (item.photoPath) { revokeDriveObjectUrl(item.photoPath); await removeDriveFile(item.photoPath); }
   } catch (e) {
     console.error(e);
     alert(`Unable to delete item.\n\n${e.message}`);
@@ -1042,7 +1000,7 @@ $("completePhoto").addEventListener("change", () => {
 ["memoryModal", "capsuleModal", "bucketModal", "addPlaceModal", "addCountdownModal"].forEach(id => {
   $(id).addEventListener("hidden.bs.modal", () => {
     if (id === "memoryModal") {
-      $("memoryForm").reset(); $("memoryId").value = ""; resetUploadProgress();
+      $("memoryForm").reset(); $("memoryId").value = ""; $("memoryExistingAudio").value = ""; $("memoryExistingAudioPath").value = ""; resetUploadProgress();
       $("memoryImagePreview").classList.add("d-none"); $("memoryVideoPreview").classList.add("d-none");
     }
     if (id === "capsuleModal") $("capsuleId").value = "";
@@ -1120,3 +1078,12 @@ function waitForGoogleDrive() {
   setTimeout(waitForGoogleDrive, 250);
 }
 waitForGoogleDrive();
+
+
+/* ADDED: automatically hydrate Google Drive media when this device already has a valid token. */
+setTimeout(() => {
+  if (driveIsAuthorized()) {
+    setDriveStatus(true, "Connected");
+    renderTimeline();
+  }
+}, 1800);
