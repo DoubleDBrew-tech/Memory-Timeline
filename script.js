@@ -1,28 +1,8 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
-  initializeApp
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-
-import {
-  getFirestore,
-  collection,
-  addDoc,
-  onSnapshot,
-  doc,
-  updateDoc,
-  query,
-  orderBy,
-  serverTimestamp
+  getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc,
+  query, orderBy, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
-import {
-  getStorage,
-  ref,
-  uploadBytes,
-  uploadBytesResumable,
-  getDownloadURL,
-  deleteObject
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
-
 
 /* =========================================================
    FIREBASE
@@ -38,2210 +18,1105 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-
 const db = getFirestore(app);
 
-const storage = getStorage(app);
+const state = {
+  memories: [],
+  capsules: [],
+  bucketList: [],
+  places: [],
+  countdowns: [],
+  currentMemoryId: "",
+  search: ""
+};
 
-let loadedMemories = [];
-
-
-/* =========================================================
-   HELPERS
-   ========================================================= */
-
-const $ = (id) =>
-  document.getElementById(id);
-
+const $ = id => document.getElementById(id);
 
 function showModal(id) {
-
   const el = $(id);
-
-  if (!el) return;
-
-  if (window.bootstrap?.Modal) {
-
-    window.bootstrap.Modal
-      .getOrCreateInstance(el)
-      .show();
-
-  }
-
+  if (el && window.bootstrap?.Modal) bootstrap.Modal.getOrCreateInstance(el).show();
 }
-
 
 function hideModal(id) {
-
   const el = $(id);
-
-  if (!el) return;
-
-  if (window.bootstrap?.Modal) {
-
-    window.bootstrap.Modal
-      .getOrCreateInstance(el)
-      .hide();
-
-  }
-
+  if (el && window.bootstrap?.Modal) bootstrap.Modal.getOrCreateInstance(el).hide();
 }
-
 
 function escapeHtml(value) {
-
   return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
-
 
 function safeUrl(value) {
-
   const url = String(value ?? "").trim();
-
   if (!url) return "";
-
   try {
-
-    const parsed =
-      new URL(
-        url,
-        window.location.href
-      );
-
-    if (
-      parsed.protocol === "http:" ||
-      parsed.protocol === "https:"
-    ) {
-
-      return parsed.href;
-
-    }
-
-  } catch (_) {}
-
-  return "";
-
+    const parsed = new URL(url, window.location.href);
+    return ["http:", "https:"].includes(parsed.protocol) ? parsed.href : "";
+  } catch { return ""; }
 }
 
-
-/* =========================================================
-   SYNC STATUS
-   ========================================================= */
-
-function setSyncStatus(
-  status,
-  text
-) {
-
-  const dot =
-    $("syncIndicator");
-
-  const label =
-    $("syncStatusText");
-
-  if (!dot || !label) return;
-
-  dot.className =
-    "sync-dot " + status;
-
-  label.textContent =
-    text;
-
+function setSyncStatus(status, text) {
+  if ($("syncIndicator")) $("syncIndicator").className = `sync-dot ${status}`;
+  if ($("syncStatusText")) $("syncStatusText").textContent = text;
 }
 
-
-/* =========================================================
-   IMAGE UPLOAD
-   ========================================================= */
-
-async function uploadImage(
-  file,
-  folder,
-  onProgress
-) {
-  if (!file) return "";
-
-  if (!file.type.startsWith("image/")) {
-    throw new Error("Please select an image file.");
-  }
-
-  if (file.size > 25 * 1024 * 1024) {
-    throw new Error("Image is too large. Please choose an image under 25 MB.");
-  }
-
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}_${safeName}`;
-  const storageRef = ref(storage, `${folder}/${fileName}`);
-
-  if (!onProgress) {
-    await uploadBytes(storageRef, file, { contentType: file.type });
-    return await getDownloadURL(storageRef);
-  }
-
-  return await new Promise((resolve, reject) => {
-    const task = uploadBytesResumable(storageRef, file, { contentType: file.type });
-    task.on(
-      "state_changed",
-      snapshot => {
-        onProgress(Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100));
-      },
-      reject,
-      async () => {
-        try {
-          resolve(await getDownloadURL(storageRef));
-        } catch (error) {
-          reject(error);
-        }
-      }
-    );
+function formatDate(dateString) {
+  if (!dateString) return "";
+  const d = new Date(`${dateString}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? dateString : d.toLocaleDateString("en-US", {
+    weekday: "long", month: "long", day: "numeric", year: "numeric"
   });
 }
 
-
-/* =========================================================
-   IMAGE PREVIEW
-   ========================================================= */
-
-function setupImagePreview(
-  inputId,
-  imageId,
-  containerId
-) {
-
-  const input =
-    $(inputId);
-
-  const image =
-    $(imageId);
-
-  const container =
-    $(containerId);
-
-  if (
-    !input ||
-    !image ||
-    !container
-  ) return;
-
-  input.addEventListener(
-    "change",
-    () => {
-
-      const file =
-        input.files?.[0];
-
-      if (!file) {
-
-        image.removeAttribute(
-          "src"
-        );
-
-        container.classList.add(
-          "d-none"
-        );
-
-        return;
-
-      }
-
-      const reader =
-        new FileReader();
-
-      reader.onload = (event) => {
-
-        image.src =
-          event.target.result;
-
-        container.classList.remove(
-          "d-none"
-        );
-
-      };
-
-      reader.readAsDataURL(
-        file
-      );
-
-    }
-  );
-
+function formatDateTime(value) {
+  if (!value) return "";
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? value : d.toLocaleString();
 }
 
-
 /* =========================================================
-   MEMORY VIEW
+   GOOGLE DRIVE MEDIA STORAGE
+   ---------------------------------------------------------
+   Firebase remains the database/realtime-sync layer.
+   Google Drive stores photos and videos.
+
+   IMPORTANT:
+   1. Set GOOGLE_DRIVE_CLIENT_ID below to your OAuth Web Client ID.
+   2. The app requests the drive.file scope.
+   3. Uploaded media is shared as "Anyone with the link" so
+      normal <img> and <video> elements can display it.
+      Do not use this mode for highly private media.
    ========================================================= */
 
-function viewMemory(id) {
-
-  const item =
-    loadedMemories.find(
-      memory =>
-        memory.id === id
-    );
-
-  if (!item) return;
-
-
-  $("memoryModalTitle")
-    .textContent =
-    item.title ||
-    "Untitled";
-
-
-  $("memoryModalDate")
-    .textContent =
-    item.date
-      ? new Date(
-          `${item.date}T00:00:00`
-        ).toLocaleDateString(
-          "en-US",
-          {
-            weekday: "long",
-            month: "long",
-            day: "numeric",
-            year: "numeric"
-          }
-        )
-      : "";
-
-
-  $("memoryModalNote")
-    .textContent =
-    item.note || "";
-
-
-  const image =
-    $("memoryModalImage");
-
-  const imageUrl =
-    safeUrl(item.image);
-
-
-  if (imageUrl) {
-
-    image.src =
-      imageUrl;
-
-    image.classList.remove(
-      "d-none"
-    );
-
-  } else {
-
-    image.removeAttribute(
-      "src"
-    );
-
-    image.classList.add(
-      "d-none"
-    );
-
-  }
-
-
-  const audioBox =
-    $("memoryModalAudioContainer");
-
-  const audio =
-    $("memoryModalAudio");
-
-  const audioUrl =
-    safeUrl(item.audio);
-
-
-  if (audioUrl) {
-
-    audio.src =
-      audioUrl;
-
-    audioBox.classList.remove(
-      "d-none"
-    );
-
-  } else {
-
-    audio.pause();
-
-    audio.removeAttribute(
-      "src"
-    );
-
-    audio.load();
-
-    audioBox.classList.add(
-      "d-none"
-    );
-
-  }
-
-
-  showModal(
-    "viewMemoryModal"
-  );
-
-}
-
-
-/* =========================================================
-   REALTIME TIMELINE
-   ========================================================= */
-
-const memoriesQuery =
-  query(
-    collection(
-      db,
-      "memories"
-    ),
-    orderBy(
-      "date",
-      "asc"
-    )
-  );
-
-
-onSnapshot(
-
-  memoriesQuery,
-
-  snapshot => {
-
-    const container =
-      $("timelineContainer");
-
-    if (!container) return;
-
-    container.innerHTML =
-      "";
-
-    loadedMemories =
-      [];
-
-
-    if (snapshot.empty) {
-
-      container.innerHTML =
-        `
-          <div class="text-center py-4 text-muted">
-            No memories added yet.
-            Tap "Add Memory" to create one!
-          </div>
-        `;
-
-      setSyncStatus(
-        "online",
-        "Synced"
-      );
-
-      return;
-
-    }
-
-
-    snapshot.forEach(
-      (docSnap, index) => {
-
-        const item = {
-          id:
-            docSnap.id,
-          ...docSnap.data()
-        };
-
-        loadedMemories.push(
-          item
-        );
-
-
-        const side =
-          index % 2 === 0
-            ? "left"
-            : "right";
-
-
-        const formattedDate =
-          item.date
-            ? new Date(
-                `${item.date}T00:00:00`
-              ).toLocaleDateString(
-                "en-US",
-                {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric"
-                }
-              )
-            : "";
-
-
-        const imageUrl =
-          safeUrl(
-            item.image
-          );
-
-
-        const element =
-          document.createElement(
-            "div"
-          );
-
-        element.className =
-          `timeline-item ${side}`;
-
-
-        element.innerHTML =
-          `
-            <div
-              class="timeline-node"
-              aria-hidden="true">
-            </div>
-
-            <button
-              type="button"
-              class="card card-memory border-0 shadow-sm rounded-4 text-start w-100 p-0"
-            >
-
-              ${
-                imageUrl
-                  ? `
-                    <img
-                      src="${escapeHtml(imageUrl)}"
-                      class="card-img-top rounded-top-4"
-                      style="height:160px;object-fit:cover;"
-                      alt=""
-                    >
-                  `
-                  : ""
-              }
-
-              <div class="card-body">
-
-                <small class="text-primary fw-bold">
-                  ${escapeHtml(formattedDate)}
-                </small>
-
-                <h5 class="card-title fw-bold mt-1 mb-1">
-                  ${escapeHtml(
-                    item.title || ""
-                  )}
-                </h5>
-
-                <p class="card-text text-muted text-truncate mb-0">
-                  ${escapeHtml(
-                    item.note || ""
-                  )}
-                </p>
-
-              </div>
-
-            </button>
-          `;
-
-
-        const card =
-          element.querySelector(
-            ".card-memory"
-          );
-
-
-        card.addEventListener(
-          "click",
-          () =>
-            viewMemory(
-              item.id
-            )
-        );
-
-
-        container.appendChild(
-          element
-        );
-
-      }
-    );
-
-
-    setSyncStatus(
-      "online",
-      "Synced"
-    );
-
-  },
-
-  error => {
-
-    console.error(
-      "Memory realtime error:",
-      error
-    );
-
-    setSyncStatus(
-      "error",
-      "Sync error"
-    );
-
-  }
-
-);
-
-
-/* =========================================================
-   CAPSULES REALTIME
-   ========================================================= */
-
-const capsulesQuery =
-  query(
-    collection(
-      db,
-      "capsules"
-    ),
-    orderBy(
-      "unlockDate",
-      "asc"
-    )
-  );
-
-
-onSnapshot(
-  capsulesQuery,
-  snapshot => {
-
-    const container =
-      $("capsuleContainer");
-
-    if (!container) return;
-
-    container.innerHTML =
-      "";
-
-
-    const today =
-      new Date();
-
-    today.setHours(
-      0,
-      0,
-      0,
-      0
-    );
-
-
-    if (snapshot.empty) {
-
-      container.innerHTML =
-        `
-          <div class="col-12 text-center text-muted py-4">
-            No capsules created yet.
-          </div>
-        `;
-
-      return;
-
-    }
-
-
-    snapshot.forEach(
-      docSnap => {
-
-        const item =
-          docSnap.data();
-
-
-        const unlockDate =
-          new Date(
-            `${item.unlockDate}T00:00:00`
-          );
-
-        unlockDate.setHours(
-          0,
-          0,
-          0,
-          0
-        );
-
-
-        const isUnlocked =
-          today >= unlockDate;
-
-
-        const daysLeft =
-          Math.max(
-            0,
-            Math.ceil(
-              (
-                unlockDate -
-                today
-              ) /
-              86400000
-            )
-          );
-
-
-        const col =
-          document.createElement(
-            "div"
-          );
-
-        col.className =
-          "col-md-6 col-lg-4";
-
-
-        if (isUnlocked) {
-
-          col.innerHTML =
-            `
-              <div class="card capsule-card unlocked shadow-sm rounded-4 h-100 p-3">
-
-                <div class="card-body p-0 d-flex flex-column">
-
-                  <div class="d-flex justify-content-between align-items-center mb-2">
-
-                    <span class="badge bg-success">
-                      <i class="bi bi-unlock me-1"></i>
-                      Unlocked
-                    </span>
-
-                    <small class="text-muted">
-                      ${escapeHtml(
-                        item.unlockDate
-                      )}
-                    </small>
-
-                  </div>
-
-                  <h5 class="fw-bold mb-2">
-                    ${escapeHtml(
-                      item.title
-                    )}
-                  </h5>
-
-                  <p
-                    class="card-text text-secondary flex-grow-1"
-                    style="white-space:pre-line;"
-                  >
-                    ${escapeHtml(
-                      item.content
-                    )}
-                  </p>
-
-                </div>
-
-              </div>
-            `;
-
-        } else {
-
-          col.innerHTML =
-            `
-              <div class="card capsule-card locked shadow-sm rounded-4 h-100 p-3 text-center">
-
-                <div class="card-body p-0 d-flex flex-column justify-content-center align-items-center">
-
-                  <i class="bi bi-lock-fill display-5 text-secondary mb-2"></i>
-
-                  <h5 class="fw-bold">
-                    ${escapeHtml(
-                      item.title
-                    )}
-                  </h5>
-
-                  <small class="text-muted mb-2">
-                    Unlocks:
-                    ${escapeHtml(
-                      item.unlockDate
-                    )}
-                  </small>
-
-                  <span class="badge bg-danger rounded-pill px-3 py-2">
-                    ${daysLeft}
-                    day(s) left
-                  </span>
-
-                </div>
-
-              </div>
-            `;
-
-        }
-
-
-        container.appendChild(
-          col
-        );
-
-      }
-    );
-
-  },
-
-  error => {
-
-    console.error(
-      "Capsule realtime error:",
-      error
-    );
-
-  }
-);
-
-
-/* =========================================================
-   BUCKET LIST REALTIME
-   ========================================================= */
-
-const bucketQuery =
-  query(
-    collection(
-      db,
-      "bucketList"
-    ),
-    orderBy(
-      "createdAt",
-      "desc"
-    )
-  );
-
-
-onSnapshot(
-  bucketQuery,
-  snapshot => {
-
-    const container =
-      $("bucketListContainer");
-
-    if (!container) return;
-
-    container.innerHTML =
-      "";
-
-
-    if (snapshot.empty) {
-
-      container.innerHTML =
-        `
-          <div class="col-12 text-center text-muted py-4">
-            No bucket list items added yet.
-          </div>
-        `;
-
-      return;
-
-    }
-
-
-    snapshot.forEach(
-      docSnap => {
-
-        const item = {
-          id:
-            docSnap.id,
-          ...docSnap.data()
-        };
-
-
-        const col =
-          document.createElement(
-            "div"
-          );
-
-        col.className =
-          "col-md-6";
-
-
-        const photoUrl =
-          safeUrl(
-            item.photo
-          );
-
-
-        col.innerHTML =
-          `
-            <div class="card border-0 shadow-sm rounded-4 h-100 p-3">
-
-              <div class="card-body p-0 d-flex align-items-start gap-3">
-
-                <input
-                  class="form-check-input fs-5 mt-1 bucket-check"
-                  type="checkbox"
-                  ${
-                    item.completed
-                      ? "checked disabled"
-                      : ""
-                  }
-                >
-
-                <div class="flex-grow-1">
-
-                  <span class="badge bg-light text-dark border mb-1">
-                    ${escapeHtml(
-                      item.category
-                    )}
-                  </span>
-
-                  <h6 class="fw-bold m-0 ${
-                    item.completed
-                      ? "text-decoration-line-through text-muted"
-                      : ""
-                  }">
-
-                    ${escapeHtml(
-                      item.title
-                    )}
-
-                  </h6>
-
-                  ${
-                    item.completed &&
-                    photoUrl
-                      ? `
-                        <img
-                          src="${escapeHtml(photoUrl)}"
-                          class="img-fluid rounded-3 mt-3 w-100"
-                          style="max-height:180px;object-fit:cover;"
-                          alt=""
-                        >
-                      `
-                      : ""
-                  }
-
-                </div>
-
-              </div>
-
-            </div>
-          `;
-
-
-        const checkbox =
-          col.querySelector(
-            ".bucket-check"
-          );
-
-
-        if (
-          !item.completed
-        ) {
-
-          checkbox.addEventListener(
-            "change",
-            () => {
-
-              $("completeBucketId")
-                .value =
-                item.id;
-
-              showModal(
-                "completeBucketModal"
-              );
-
-            }
-          );
-
-        }
-
-
-        container.appendChild(
-          col
-        );
-
-      }
-    );
-
-  },
-
-  error => {
-
-    console.error(
-      "Bucket realtime error:",
-      error
-    );
-
-  }
-);
-
-
-/* =========================================================
-   SAVE MEMORY
-   ========================================================= */
-
-$("memoryForm")
-  .addEventListener(
-    "submit",
-    async event => {
-
-      event.preventDefault();
-
-
-      const button =
-        $("saveMemoryBtn");
-
-
-      button.disabled =
-        true;
-
-
-      button.innerHTML =
-        `
-          <span
-            class="spinner-border spinner-border-sm me-2">
-          </span>
-
-          Uploading...
-        `;
-
-
-      try {
-
-        const file =
-          $("memImage")
-            .files?.[0];
-
-
-        let imageUrl =
-          "";
-
-
-        if (file) {
-
-          imageUrl =
-            await uploadImage(
-              file,
-              "memories"
-            );
-
-        }
-
-
-        await addDoc(
-          collection(
-            db,
-            "memories"
-          ),
-          {
-
-            title:
-              $("memTitle")
-                .value
-                .trim(),
-
-            date:
-              $("memDate")
-                .value,
-
-            image:
-              imageUrl,
-
-            audio:
-              $("memAudio")
-                .value
-                .trim(),
-
-            note:
-              $("memNote")
-                .value
-                .trim(),
-
-            createdAt:
-              serverTimestamp()
-
-          }
-        );
-
-
-        event.target.reset();
-
-
-        $(
-          "memoryImagePreviewContainer"
-        )
-          .classList.add(
-            "d-none"
-          );
-
-
-        hideModal(
-          "addMemoryModal"
-        );
-
-
-      } catch (error) {
-
-        console.error(
-          "Error saving memory:",
-          error
-        );
-
-
-        alert(
-          "Unable to save memory.\n\n" +
-          error.message
-        );
-
-
-      } finally {
-
-        button.disabled =
-          false;
-
-        button.innerHTML =
-          `
-            <i class="bi bi-cloud-arrow-up me-1"></i>
-            Save Memory
-          `;
-
-      }
-
-    }
-  );
-
-
-/* =========================================================
-   ADD CAPSULE
-   ========================================================= */
-
-$("capsuleForm")
-  .addEventListener(
-    "submit",
-    async event => {
-
-      event.preventDefault();
-
-
-      const button =
-        event.submitter;
-
-      button.disabled =
-        true;
-
-
-      try {
-
-        await addDoc(
-          collection(
-            db,
-            "capsules"
-          ),
-          {
-
-            title:
-              $("capTitle")
-                .value
-                .trim(),
-
-            unlockDate:
-              $("capUnlockDate")
-                .value,
-
-            content:
-              $("capContent")
-                .value
-                .trim(),
-
-            createdAt:
-              serverTimestamp()
-
-          }
-        );
-
-
-        event.target.reset();
-
-        hideModal(
-          "addCapsuleModal"
-        );
-
-
-      } catch (error) {
-
-        console.error(
-          error
-        );
-
-        alert(
-          "Unable to create capsule.\n\n" +
-          error.message
-        );
-
-
-      } finally {
-
-        button.disabled =
-          false;
-
-      }
-
-    }
-  );
-
-
-/* =========================================================
-   ADD BUCKET
-   ========================================================= */
-
-$("bucketForm")
-  .addEventListener(
-    "submit",
-    async event => {
-
-      event.preventDefault();
-
-
-      const button =
-        event.submitter;
-
-      button.disabled =
-        true;
-
-
-      try {
-
-        await addDoc(
-          collection(
-            db,
-            "bucketList"
-          ),
-          {
-
-            title:
-              $("bucketTitle")
-                .value
-                .trim(),
-
-            category:
-              $("bucketCategory")
-                .value,
-
-            completed:
-              false,
-
-            photo:
-              "",
-
-            createdAt:
-              serverTimestamp()
-
-          }
-        );
-
-
-        event.target.reset();
-
-        hideModal(
-          "addBucketModal"
-        );
-
-
-      } catch (error) {
-
-        console.error(
-          error
-        );
-
-        alert(
-          "Unable to add goal.\n\n" +
-          error.message
-        );
-
-
-      } finally {
-
-        button.disabled =
-          false;
-
-      }
-
-    }
-  );
-
-
-/* =========================================================
-   COMPLETE BUCKET + UPLOAD PHOTO
-   ========================================================= */
-
-$("completeBucketForm")
-  .addEventListener(
-    "submit",
-    async event => {
-
-      event.preventDefault();
-
-
-      const id =
-        $("completeBucketId")
-          .value;
-
-
-      if (!id) return;
-
-
-      const button =
-        event.submitter;
-
-      button.disabled =
-        true;
-
-
-      try {
-
-        const file =
-          $("completePhoto")
-            .files?.[0];
-
-
-        let photoUrl =
-          "";
-
-
-        if (file) {
-
-          button.innerHTML =
-            `
-              <span
-                class="spinner-border spinner-border-sm me-2">
-              </span>
-
-              Uploading...
-            `;
-
-
-          photoUrl =
-            await uploadImage(
-              file,
-              "bucket-completions"
-            );
-
-        }
-
-
-        await updateDoc(
-          doc(
-            db,
-            "bucketList",
-            id
-          ),
-          {
-
-            completed:
-              true,
-
-            photo:
-              photoUrl
-
-          }
-        );
-
-
-        event.target.reset();
-
-        $("completeBucketId")
-          .value =
-          "";
-
-
-        $("completePhotoPreviewContainer")
-          .classList.add(
-            "d-none"
-          );
-
-
-        hideModal(
-          "completeBucketModal"
-        );
-
-
-      } catch (error) {
-
-        console.error(
-          error
-        );
-
-        alert(
-          "Unable to complete goal.\n\n" +
-          error.message
-        );
-
-
-      } finally {
-
-        button.disabled =
-          false;
-
-        button.innerHTML =
-          `
-            <i class="bi bi-check-lg me-1"></i>
-            Mark Complete
-          `;
-
-      }
-
-    }
-  );
-
-
-/* =========================================================
-   IMAGE PREVIEWS
-   ========================================================= */
-
-setupImagePreview(
-  "memImage",
-  "memoryImagePreview",
-  "memoryImagePreviewContainer"
-);
-
-
-setupImagePreview(
-  "completePhoto",
-  "completePhotoPreview",
-  "completePhotoPreviewContainer"
-);
-
-
-/* =========================================================
-   REMOVE MEMORY PHOTO
-   ========================================================= */
-
-$("removeMemoryImage")
-  ?.addEventListener(
-    "click",
-    () => {
-
-      $("memImage")
-        .value =
-        "";
-
-      $("memoryImagePreview")
-        .removeAttribute(
-          "src"
-        );
-
-      $("memoryImagePreviewContainer")
-        .classList.add(
-          "d-none"
-        );
-
-    }
-  );
-
-
-/* =========================================================
-   MODAL CLOSE BUTTONS
-   ========================================================= */
-
-document
-  .querySelectorAll(
-    '[data-bs-dismiss="modal"]'
-  )
-  .forEach(
-    button => {
-
-      button.addEventListener(
-        "click",
-        () => {
-
-          const modal =
-            button.closest(
-              ".modal"
-            );
-
-          if (
-            modal?.id
-          ) {
-
-            hideModal(
-              modal.id
-            );
-
-          }
-
-        }
-      );
-
-    }
-  );
-
-/* =========================================================
-   ADDED FEATURES
-   The original project code above is intentionally preserved.
-   This layer adds CRUD, video uploads, gallery, search,
-   letters, places, countdowns and achievements.
-   ========================================================= */
-
-const featureState = {
-  letters: [],
-  places: [],
-  countdowns: []
+const GOOGLE_DRIVE_CLIENT_ID = "1035343182029-e5kbaep69kchplnenphatf83ggqojnsg.apps.googleusercontent.com";
+const GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+const DRIVE_FOLDER_NAME = "Memory Vault Media";
+
+const driveState = {
+  accessToken: "",
+  tokenExpiresAt: 0,
+  client: null,
+  folderId: "",
+  connected: false
 };
 
-function featureFormatDate(value) {
-  if (!value) return "";
-  const d = new Date(`${value}T00:00:00`);
-  return Number.isNaN(d.getTime())
-    ? value
-    : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+function setDriveStatus(connected, text) {
+  const el = $("driveStatus");
+  if (!el) return;
+  el.innerHTML = connected
+    ? `<i class="bi bi-cloud-check me-1"></i>Google Drive: ${escapeHtml(text || "Connected")}`
+    : `<i class="bi bi-cloud-slash me-1"></i>Google Drive: ${escapeHtml(text || "Not connected")}`;
+  el.classList.toggle("connected", connected);
 }
 
-function featureConfirm(message) {
-  return window.confirm(message);
-}
-
-async function featureDeleteStoragePath(path) {
-  if (!path) return;
+function getSavedDriveConfig() {
   try {
-    await deleteObject(ref(storage, path));
-  } catch (_) {
-    // Existing files may not have a saved storage path.
+    return {
+      clientId: localStorage.getItem("memoryVaultGoogleClientId") || GOOGLE_DRIVE_CLIENT_ID,
+      folderName: localStorage.getItem("memoryVaultGoogleFolderName") || DRIVE_FOLDER_NAME
+    };
+  } catch {
+    return { clientId: GOOGLE_DRIVE_CLIENT_ID, folderName: DRIVE_FOLDER_NAME };
   }
 }
 
-/* -------------------------
-   MEMORY EDIT / DELETE
-   ------------------------- */
-
-function featureOpenMemoryEditor(item) {
-  $("memTitle").value = item.title || "";
-  $("memDate").value = item.date || "";
-  $("memAudio").value = item.audio || "";
-  $("memNote").value = item.note || "";
-  $("memoryForm").dataset.editingId = item.id;
-  $("memoryForm").dataset.editingImage = item.image || "";
-  $("memoryForm").dataset.editingImagePath = item.imagePath || "";
-  $("memoryForm").dataset.editingVideo = item.video || "";
-  $("memoryForm").dataset.editingVideoPath = item.videoPath || "";
-
-  const title = document.querySelector("#addMemoryModal .modal-title");
-  if (title) title.textContent = "Edit Memory";
-  const save = $("saveMemoryBtn");
-  if (save) save.innerHTML = '<i class="bi bi-save me-1"></i> Save Changes';
-
-  showModal("addMemoryModal");
+function saveDriveConfig(clientId, folderName) {
+  localStorage.setItem("memoryVaultGoogleClientId", clientId);
+  localStorage.setItem("memoryVaultGoogleFolderName", folderName || DRIVE_FOLDER_NAME);
 }
 
-async function featureDeleteMemory(item) {
-  if (!featureConfirm(`Delete "${item.title || "this memory"}"?`)) return;
-
-  if (item.imagePath) await featureDeleteStoragePath(item.imagePath);
-  if (item.videoPath) await featureDeleteStoragePath(item.videoPath);
-
-  await deleteDoc(doc(db, "memories", item.id));
+function driveIsAuthorized() {
+  return !!driveState.accessToken && Date.now() < driveState.tokenExpiresAt - 30000;
 }
 
-/* Intercept the existing memory form only when it is in edit mode.
-   Normal "Add Memory" continues through the original handler. */
-$("memoryForm")?.addEventListener("submit", async event => {
-  const id = $("memoryForm").dataset.editingId;
-  if (!id) return;
+function initGoogleDriveClient() {
+  const config = getSavedDriveConfig();
 
-  event.preventDefault();
-  event.stopImmediatePropagation();
+  if (!config.clientId || config.clientId.includes("PASTE_YOUR_")) {
+    setDriveStatus(false, "Client ID required");
+    return false;
+  }
 
-  const button = $("saveMemoryBtn");
-  button.disabled = true;
+  if (!window.google?.accounts?.oauth2) {
+    setDriveStatus(false, "Google authorization is still loading...");
+    return false;
+  }
 
-  try {
-    const old = loadedMemories.find(x => x.id === id) || {};
-
-    let image = $("memoryForm").dataset.editingImage || old.image || "";
-    let imagePath = $("memoryForm").dataset.editingImagePath || old.imagePath || "";
-    let video = $("memoryForm").dataset.editingVideo || old.video || "";
-    let videoPath = $("memoryForm").dataset.editingVideoPath || old.videoPath || "";
-
-    const imageFile = $("memImage")?.files?.[0];
-    const videoFile = $("memVideo")?.files?.[0];
-
-    if (imageFile) {
-      const oldPath = imagePath;
-      image = await uploadImage(imageFile, "memories", p => {
-        const bar = $("memoryVideoProgressBar");
-        const box = $("memoryVideoProgress");
-        if (box && bar) {
-          box.classList.remove("d-none");
-          bar.style.width = `${p}%`;
-          bar.textContent = `Photo ${p}%`;
-        }
+  driveState.client = google.accounts.oauth2.initTokenClient({
+    client_id: config.clientId,
+    scope: GOOGLE_DRIVE_SCOPE,
+    callback: response => {
+      if (response.error) {
+        console.error("Google Drive OAuth error:", response);
+        setDriveStatus(false, "Authorization failed");
+        return;
+      }
+      driveState.accessToken = response.access_token;
+      driveState.tokenExpiresAt = Date.now() + ((response.expires_in || 3600) * 1000);
+      driveState.connected = true;
+      setDriveStatus(true, "Connected");
+      ensureDriveFolder().catch(error => {
+        console.error(error);
+        setDriveStatus(false, "Folder setup failed");
       });
-      imagePath = "";
-      if (oldPath) await featureDeleteStoragePath(oldPath);
     }
+  });
 
-    if (videoFile) {
-      const oldPath = videoPath;
-      const safeName = videoFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-      const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}_${safeName}`;
-      const storageRef = ref(storage, `memories/videos/${fileName}`);
+  return true;
+}
 
-      if (videoFile.size > 500 * 1024 * 1024) {
-        throw new Error("Video is too large. Maximum supported size is 500 MB.");
+async function connectGoogleDrive(forcePrompt = false) {
+  const config = getSavedDriveConfig();
+
+  if (!config.clientId || config.clientId.includes("PASTE_YOUR_")) {
+    $("googleDriveClientIdInput").value = config.clientId.includes("PASTE_YOUR_") ? "" : config.clientId;
+    $("googleDriveFolderNameInput").value = config.folderName;
+    showModal("driveSetupModal");
+    return false;
+  }
+
+  if (!window.google?.accounts?.oauth2) {
+    alert("Google authorization is still loading. Please wait a moment and try again.");
+    return false;
+  }
+
+  if (!driveState.client) initGoogleDriveClient();
+  if (!driveState.client) return false;
+
+  if (driveIsAuthorized() && !forcePrompt) {
+    await ensureDriveFolder();
+    setDriveStatus(true, "Connected");
+    return true;
+  }
+
+  return new Promise(resolve => {
+    const oldCallback = driveState.client.callback;
+    driveState.client.callback = response => {
+      if (oldCallback) oldCallback(response);
+      resolve(!response.error);
+    };
+    driveState.client.requestAccessToken({ prompt: forcePrompt ? "consent" : "" });
+  });
+}
+
+async function driveFetch(url, options = {}) {
+  if (!driveIsAuthorized()) {
+    const ok = await connectGoogleDrive(false);
+    if (!ok) throw new Error("Google Drive is not connected.");
+  }
+
+  const headers = new Headers(options.headers || {});
+  headers.set("Authorization", `Bearer ${driveState.accessToken}`);
+
+  const response = await fetch(url, { ...options, headers });
+  if (!response.ok) {
+    let message = `${response.status} ${response.statusText}`;
+    try {
+      const body = await response.json();
+      message = body?.error?.message || message;
+    } catch {}
+    throw new Error(`Google Drive: ${message}`);
+  }
+  return response;
+}
+
+async function ensureDriveFolder() {
+  if (driveState.folderId) return driveState.folderId;
+
+  const config = getSavedDriveConfig();
+  const folderName = config.folderName || DRIVE_FOLDER_NAME;
+
+  const searchUrl =
+    `https://www.googleapis.com/drive/v3/files?spaces=drive&` +
+    `q=${encodeURIComponent(`name = '${folderName.replace(/'/g, "\\'")}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`)}` +
+    `&fields=files(id,name)&pageSize=10`;
+
+  const searchResponse = await driveFetch(searchUrl);
+  const searchData = await searchResponse.json();
+
+  if (searchData.files?.length) {
+    driveState.folderId = searchData.files[0].id;
+    return driveState.folderId;
+  }
+
+  const createResponse = await driveFetch(
+    "https://www.googleapis.com/drive/v3/files?fields=id,name",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: folderName,
+        mimeType: "application/vnd.google-apps.folder"
+      })
+    }
+  );
+
+  const folder = await createResponse.json();
+  driveState.folderId = folder.id;
+  return folder.id;
+}
+
+function drivePublicUrl(fileId) {
+  return fileId
+    ? `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`
+    : "";
+}
+
+async function makeDriveFileViewable(fileId) {
+  // Required for <img>/<video> elements to access media without
+  // attaching an OAuth Authorization header.
+  const response = await driveFetch(
+    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "anyone",
+        role: "reader"
+      })
+    }
+  );
+
+  return response.ok;
+}
+
+function uploadToDrive(file, folderName, onProgress = () => {}) {
+  return new Promise(async (resolve, reject) => {
+    try {
+      if (!file) return resolve({ url: "", path: "", id: "" });
+
+      const ok = await connectGoogleDrive(false);
+      if (!ok) throw new Error("Connect Google Drive before uploading media.");
+
+      const folderId = await ensureDriveFolder();
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const finalName = `${Date.now()}_${Math.random().toString(36).slice(2)}_${safeName}`;
+
+      // Step 1: start a Drive resumable upload.
+      const initResponse = await driveFetch(
+        "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,name,mimeType",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json; charset=UTF-8",
+            "X-Upload-Content-Type": file.type || "application/octet-stream",
+            "X-Upload-Content-Length": String(file.size)
+          },
+          body: JSON.stringify({
+            name: finalName,
+            parents: [folderId],
+            mimeType: file.type || "application/octet-stream"
+          })
+        }
+      );
+
+      const sessionUrl = initResponse.headers.get("Location");
+      if (!sessionUrl) {
+        throw new Error("Google Drive did not return a resumable upload session.");
       }
 
-      const box = $("memoryVideoProgress");
-      const bar = $("memoryVideoProgressBar");
-      box?.classList.remove("d-none");
+      // Step 2: upload with XMLHttpRequest so we get byte-level progress.
+      const result = await new Promise((resolveUpload, rejectUpload) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", sessionUrl, true);
+        xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
 
-      const result = await new Promise((resolve, reject) => {
-        const task = uploadBytesResumable(storageRef, videoFile, { contentType: videoFile.type });
-        task.on(
-          "state_changed",
-          snapshot => {
-            const p = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-            if (bar) {
-              bar.style.width = `${p}%`;
-              bar.textContent = `Video ${p}%`;
+        xhr.upload.onprogress = event => {
+          if (event.lengthComputable) {
+            onProgress(Math.round((event.loaded / event.total) * 100));
+          }
+        };
+
+        xhr.onload = async () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              resolveUpload(JSON.parse(xhr.responseText));
+            } catch {
+              rejectUpload(new Error("Google Drive returned an invalid upload response."));
             }
-          },
-          reject,
-          async () => resolve(await getDownloadURL(storageRef))
-        );
+          } else {
+            rejectUpload(new Error(`Google Drive upload failed (${xhr.status}).`));
+          }
+        };
+
+        xhr.onerror = () => rejectUpload(new Error("Network error while uploading to Google Drive."));
+        xhr.onabort = () => rejectUpload(new Error("Google Drive upload was cancelled."));
+        xhr.send(file);
       });
 
-      video = result;
-      videoPath = `memories/videos/${fileName}`;
-      if (oldPath) await featureDeleteStoragePath(oldPath);
+      const fileId = result.id;
+      if (!fileId) throw new Error("Google Drive did not return a file ID.");
+
+      // Make media directly renderable by <img> and <video>.
+      await makeDriveFileViewable(fileId);
+
+      onProgress(100);
+
+      resolve({
+        url: drivePublicUrl(fileId),
+        path: fileId,       // Keep the existing Firestore field name.
+        id: fileId,
+        name: result.name || finalName
+      });
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+async function removeDriveFile(fileId) {
+  if (!fileId) return;
+
+  // If this is an old Firebase Storage path, Drive will return 400/404;
+  // we intentionally ignore it so old memories are not broken.
+  try {
+    await driveFetch(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}`,
+      { method: "DELETE" }
+    );
+  } catch (error) {
+    console.warn("Drive cleanup skipped:", error.message);
+  }
+}
+
+function setUploadProgress(percent, text = "Uploading media...") {
+  const wrap = $("memoryUploadProgressWrap");
+  if (!wrap) return;
+  wrap.classList.remove("d-none");
+  $("memoryUploadStatus").textContent = text;
+  $("memoryUploadPercent").textContent = `${percent}%`;
+  $("memoryUploadProgress").style.width = `${percent}%`;
+}
+
+function resetUploadProgress() {
+  $("memoryUploadProgressWrap")?.classList.add("d-none");
+  if ($("memoryUploadProgress")) $("memoryUploadProgress").style.width = "0%";
+}
+
+/* =========================================================
+   REALTIME COLLECTION SUBSCRIPTIONS
+   ========================================================= */
+
+function subscribe(collectionName, target, orderField, render) {
+  const q = query(collection(db, collectionName), orderBy(orderField, "asc"));
+  onSnapshot(q, snapshot => {
+    state[target] = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    render();
+    renderAchievements();
+    renderSearch();
+    setSyncStatus("online", "Synced");
+  }, error => {
+    console.error(`${collectionName} realtime error:`, error);
+    setSyncStatus("error", "Sync error");
+  });
+}
+
+subscribe("memories", "memories", "date", renderTimeline);
+subscribe("capsules", "capsules", "unlockDate", renderCapsules);
+subscribe("bucketList", "bucketList", "createdAt", renderBucketList);
+subscribe("places", "places", "createdAt", renderPlaces);
+subscribe("countdowns", "countdowns", "targetDate", renderCountdowns);
+
+/* =========================================================
+   MEMORY TIMELINE + GALLERY
+   ========================================================= */
+
+function mediaMarkup(item, mode = "card") {
+  const image = safeUrl(item.image);
+  const video = safeUrl(item.video);
+  if (mode === "gallery") {
+    if (video) return `<video src="${escapeHtml(video)}" controls playsinline preload="metadata"></video>`;
+    if (image) return `<img src="${escapeHtml(image)}" class="media-thumb" loading="lazy" alt="">`;
+    return `<div class="d-flex align-items-center justify-content-center rounded-4 bg-light media-thumb"><i class="bi bi-file-earmark fs-1 text-muted"></i></div>`;
+  }
+  let out = "";
+  if (image) out += `<img src="${escapeHtml(image)}" class="card-img-top rounded-top-4" style="height:180px;object-fit:cover" alt="" loading="lazy">`;
+  if (video) out += `<video src="${escapeHtml(video)}" class="w-100 rounded-top-4" style="height:180px;object-fit:cover" controls playsinline preload="metadata"></video>`;
+  return out;
+}
+
+function renderTimeline() {
+  const container = $("timelineContainer");
+  if (!container) return;
+  container.innerHTML = "";
+
+  if (!state.memories.length) {
+    container.innerHTML = `<div class="text-center py-5 text-muted">No memories yet. Add your first one! 💜</div>`;
+    return;
+  }
+
+  state.memories.forEach((item, index) => {
+    const side = index % 2 === 0 ? "left" : "right";
+    const el = document.createElement("div");
+    el.className = `timeline-item ${side}`;
+    el.innerHTML = `
+      <div class="timeline-node" aria-hidden="true"></div>
+      <button type="button" class="card card-memory shadow-sm rounded-4 text-start w-100 p-0">
+        ${mediaMarkup(item)}
+        <div class="card-body">
+          <small class="text-primary fw-bold">${escapeHtml(formatDate(item.date))}</small>
+          <h5 class="card-title fw-bold mt-1 mb-1">${escapeHtml(item.title)}</h5>
+          <p class="card-text text-muted text-truncate mb-0">${escapeHtml(item.note)}</p>
+          <div class="mt-2 d-flex gap-2 small text-muted">
+            ${item.image ? '<span><i class="bi bi-image"></i> Photo</span>' : ''}
+            ${item.video ? '<span><i class="bi bi-camera-video"></i> Video</span>' : ''}
+            ${item.audio ? '<span><i class="bi bi-music-note"></i> Audio</span>' : ''}
+          </div>
+        </div>
+      </button>`;
+    el.querySelector(".card-memory").addEventListener("click", () => viewMemory(item.id));
+    container.appendChild(el);
+  });
+}
+
+function viewMemory(id) {
+  const item = state.memories.find(x => x.id === id);
+  if (!item) return;
+  state.currentMemoryId = id;
+
+  $("memoryModalTitle").textContent = item.title || "Untitled";
+  $("memoryModalDate").textContent = formatDate(item.date);
+  $("memoryModalNote").textContent = item.note || "";
+
+  const media = $("memoryModalMedia");
+  media.innerHTML = "";
+  if (item.image) media.insertAdjacentHTML("beforeend", `<img src="${escapeHtml(safeUrl(item.image))}" class="img-fluid rounded-4 w-100 mb-3" style="max-height:420px;object-fit:contain" alt="">`);
+  if (item.video) media.insertAdjacentHTML("beforeend", `<video src="${escapeHtml(safeUrl(item.video))}" class="w-100 rounded-4 mb-3" controls playsinline></video>`);
+
+  const audio = $("memoryModalAudio");
+  const audioBox = $("memoryModalAudioContainer");
+  const audioUrl = safeUrl(item.audio);
+  if (audioUrl) {
+    audio.src = audioUrl;
+    audioBox.classList.remove("d-none");
+  } else {
+    audio.pause(); audio.removeAttribute("src"); audio.load(); audioBox.classList.add("d-none");
+  }
+  showModal("viewMemoryModal");
+}
+
+$("editMemoryBtn").addEventListener("click", () => {
+  const item = state.memories.find(x => x.id === state.currentMemoryId);
+  if (!item) return;
+  hideModal("viewMemoryModal");
+  openMemoryEditor(item);
+});
+
+$("deleteMemoryBtn").addEventListener("click", async () => {
+  const item = state.memories.find(x => x.id === state.currentMemoryId);
+  if (!item) return;
+  await deleteRecord("memories", item);
+  hideModal("viewMemoryModal");
+});
+
+function openMemoryEditor(item = null) {
+  $("memoryForm").reset();
+  $("memoryId").value = item?.id || "";
+  $("memoryExistingImage").value = item?.image || "";
+  $("memoryExistingVideo").value = item?.video || "";
+  $("memoryExistingImagePath").value = item?.imagePath || "";
+  $("memoryExistingVideoPath").value = item?.videoPath || "";
+  $("memoryFormTitle").textContent = item ? "Edit Memory" : "Add New Memory";
+  $("saveMemoryBtn").innerHTML = item ? '<i class="bi bi-check2 me-1"></i>Update Memory' : '<i class="bi bi-cloud-arrow-up me-1"></i>Save Memory';
+  if (item) {
+    $("memTitle").value = item.title || "";
+    $("memDate").value = item.date || "";
+    $("memAudio").value = item.audio || "";
+    $("memNote").value = item.note || "";
+  }
+  showModal("memoryModal");
+}
+
+document.querySelector('[data-bs-target="#memoryModal"]').addEventListener("click", () => openMemoryEditor());
+
+$("memoryForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  const button = $("saveMemoryBtn");
+  button.disabled = true;
+  try {
+    const id = $("memoryId").value;
+    let image = { url: $("memoryExistingImage").value, path: $("memoryExistingImagePath").value };
+    let video = { url: $("memoryExistingVideo").value, path: $("memoryExistingVideoPath").value };
+
+    const imageFile = $("memImage").files?.[0];
+    const videoFile = $("memVideo").files?.[0];
+
+    if (imageFile) {
+      setUploadProgress(0, "Uploading photo...");
+      image = await uploadToDrive(imageFile, "memories/photos", p => setUploadProgress(p, "Uploading photo..."));
+    }
+    if (videoFile) {
+      setUploadProgress(0, "Uploading video...");
+      video = await uploadToDrive(videoFile, "memories/videos", p => setUploadProgress(p, "Uploading large video..."));
     }
 
-    await updateDoc(doc(db, "memories", id), {
+    const payload = {
       title: $("memTitle").value.trim(),
       date: $("memDate").value,
-      image,
-      imagePath,
-      video,
-      videoPath,
+      image: image.url || "",
+      imagePath: image.path || "",
+      video: video.url || "",
+      videoPath: video.path || "",
       audio: $("memAudio").value.trim(),
       note: $("memNote").value.trim(),
       updatedAt: serverTimestamp()
-    });
-
-    $("memoryForm").reset();
-    delete $("memoryForm").dataset.editingId;
-    delete $("memoryForm").dataset.editingImage;
-    delete $("memoryForm").dataset.editingImagePath;
-    delete $("memoryForm").dataset.editingVideo;
-    delete $("memoryForm").dataset.editingVideoPath;
-
-    const title = document.querySelector("#addMemoryModal .modal-title");
-    if (title) title.textContent = "Add New Memory";
-    button.innerHTML = '<i class="bi bi-cloud-arrow-up me-1"></i> Save Memory';
-    hideModal("addMemoryModal");
-  } catch (error) {
-    alert(`Unable to update memory.\n\n${error.message}`);
-  } finally {
-    button.disabled = false;
-  }
-}, true);
-
-/* Add edit/delete controls to the original timeline cards after Firebase renders them. */
-function featureDecorateMemoryCards() {
-  document.querySelectorAll("#timelineContainer .timeline-item").forEach((row, index) => {
-    if (row.querySelector(".feature-memory-actions")) return;
-    const item = loadedMemories[index];
-    if (!item) return;
-
-    const card = row.querySelector(".card-memory");
-    if (!card) return;
-
-    const body = card.querySelector(".card-body");
-    if (!body) return;
-
-    const actions = document.createElement("div");
-    actions.className = "feature-action-row feature-memory-actions";
-    actions.innerHTML = `
-      <button type="button" class="btn btn-sm btn-outline-primary">Edit</button>
-      <button type="button" class="btn btn-sm btn-outline-danger">Delete</button>
-    `;
-    actions.children[0].onclick = e => {
-      e.preventDefault();
-      e.stopPropagation();
-      featureOpenMemoryEditor(item);
     };
-    actions.children[1].onclick = async e => {
-      e.preventDefault();
-      e.stopPropagation();
-      await featureDeleteMemory(item);
-    };
-    body.appendChild(actions);
 
-    // Video thumbnail/player for memories added with the new uploader.
-    if (item.video && !card.querySelector(".feature-memory-video")) {
-      const video = document.createElement("video");
-      video.className = "feature-memory-video w-100";
-      video.controls = true;
-      video.preload = "metadata";
-      video.src = safeUrl(item.video);
-      video.style.height = "180px";
-      video.style.objectFit = "cover";
-      card.insertBefore(video, body);
+    if (id) {
+      await updateDoc(doc(db, "memories", id), payload);
+      if (imageFile) await removeDriveFile($("memoryExistingImagePath").value);
+      if (videoFile) await removeDriveFile($("memoryExistingVideoPath").value);
+    } else {
+      await addDoc(collection(db, "memories"), { ...payload, createdAt: serverTimestamp() });
     }
-  });
-}
 
-new MutationObserver(featureDecorateMemoryCards).observe($("timelineContainer"), { childList: true, subtree: true });
-
-/* -------------------------
-   EXISTING CAPSULE CRUD
-   ------------------------- */
-
-function featureDecorateCapsules() {
-  document.querySelectorAll("#capsuleContainer .card").forEach((card, index) => {
-    if (card.querySelector(".feature-capsule-actions")) return;
-
-    const cards = Array.from(document.querySelectorAll("#capsuleContainer .card"));
-    const item = featureCapsuleCache[index];
-    if (!item) return;
-
-    const body = card.querySelector(".card-body");
-    if (!body) return;
-
-    const actions = document.createElement("div");
-    actions.className = "feature-action-row feature-capsule-actions";
-    actions.innerHTML = `
-      <button type="button" class="btn btn-sm btn-outline-danger">Edit</button>
-      <button type="button" class="btn btn-sm btn-outline-secondary">Delete</button>
-    `;
-    actions.children[0].onclick = () => featureOpenCapsuleEditor(item);
-    actions.children[1].onclick = async () => {
-      if (featureConfirm("Delete this capsule?")) await deleteDoc(doc(db, "capsules", item.id));
-    };
-    body.appendChild(actions);
-  });
-}
-let featureCapsuleCache = [];
-
-function featureOpenCapsuleEditor(item) {
-  $("capTitle").value = item.title || "";
-  $("capUnlockDate").value = item.unlockDate || "";
-  $("capContent").value = item.content || "";
-  $("capsuleForm").dataset.editingId = item.id;
-  const title = document.querySelector("#addCapsuleModal .modal-title");
-  if (title) title.textContent = "Edit Time Capsule";
-  const button = document.querySelector("#capsuleForm button[type=submit]");
-  if (button) button.innerHTML = '<i class="bi bi-save me-1"></i> Save Changes';
-  showModal("addCapsuleModal");
-}
-
-$("capsuleForm")?.addEventListener("submit", async event => {
-  const id = $("capsuleForm").dataset.editingId;
-  if (!id) return;
-
-  event.preventDefault();
-  event.stopImmediatePropagation();
-
-  const button = event.submitter;
-  button.disabled = true;
-  try {
-    await updateDoc(doc(db, "capsules", id), {
-      title: $("capTitle").value.trim(),
-      unlockDate: $("capUnlockDate").value,
-      content: $("capContent").value.trim(),
-      updatedAt: serverTimestamp()
-    });
-    $("capsuleForm").reset();
-    delete $("capsuleForm").dataset.editingId;
-    const title = document.querySelector("#addCapsuleModal .modal-title");
-    if (title) title.textContent = "Create Time Capsule";
-    hideModal("addCapsuleModal");
+    event.target.reset();
+    resetUploadProgress();
+    hideModal("memoryModal");
   } catch (error) {
-    alert(`Unable to update capsule.\n\n${error.message}`);
+    console.error(error);
+    alert(`Unable to save memory.\n\n${error.message}`);
   } finally {
     button.disabled = false;
+    resetUploadProgress();
   }
-}, true);
+});
 
-/* -------------------------
-   EXISTING BUCKET CRUD
-   ------------------------- */
+function renderGallery() {
+  const container = $("galleryContainer");
+  if (!container) return;
+  const mediaItems = state.memories.filter(x => x.image || x.video);
+  container.innerHTML = mediaItems.length ? mediaItems.map(item => `
+    <div class="col-6 col-md-4 col-lg-3 gallery-item">
+      <div class="card border-0 shadow-sm rounded-4 p-2 h-100">
+        ${mediaMarkup(item, "gallery")}
+        <div class="pt-2 px-1">
+          <div class="fw-semibold text-truncate">${escapeHtml(item.title)}</div>
+          <small class="text-muted">${escapeHtml(formatDate(item.date))}</small>
+        </div>
+      </div>
+    </div>`).join("") :
+    `<div class="col-12 text-center text-muted py-5">No photos or videos uploaded yet.</div>`;
+}
 
-let featureBucketCache = [];
+$("openGalleryBtn").addEventListener("click", () => {
+  renderGallery();
+  showModal("galleryModal");
+});
 
-function featureDecorateBuckets() {
-  document.querySelectorAll("#bucketListContainer .col-md-6").forEach((col, index) => {
-    if (col.querySelector(".feature-bucket-actions")) return;
-    const item = featureBucketCache[index];
-    if (!item) return;
+/* =========================================================
+   CAPSULES / LETTERS
+   ========================================================= */
 
-    const body = col.querySelector(".card-body");
-    if (!body) return;
+function renderCapsules() {
+  const container = $("capsuleContainer");
+  if (!container) return;
+  const today = new Date(); today.setHours(0,0,0,0);
+  container.innerHTML = state.capsules.length ? "" : `<div class="col-12 text-center text-muted py-5">No letters yet.</div>`;
 
-    const actions = document.createElement("div");
-    actions.className = "feature-action-row feature-bucket-actions";
-    actions.innerHTML = `
-      <button type="button" class="btn btn-sm btn-outline-primary">Edit</button>
-      <button type="button" class="btn btn-sm btn-outline-danger">Delete</button>
-    `;
-    actions.children[0].onclick = () => featureOpenBucketEditor(item);
-    actions.children[1].onclick = async () => {
-      if (featureConfirm("Delete this bucket goal?")) {
-        await deleteDoc(doc(db, "bucketList", item.id));
-      }
-    };
-    body.appendChild(actions);
+  state.capsules.forEach(item => {
+    const unlock = new Date(`${item.unlockDate}T00:00:00`);
+    const unlocked = today >= unlock;
+    const days = Math.max(0, Math.ceil((unlock - today) / 86400000));
+    const col = document.createElement("div");
+    col.className = "col-md-6 col-lg-4";
+    col.innerHTML = `
+      <div class="card capsule-card ${unlocked ? "border-success" : "border-secondary"} shadow-sm rounded-4 h-100 p-3">
+        <div class="card-body p-0 d-flex flex-column">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="badge ${unlocked ? "bg-success" : "bg-secondary"}">${unlocked ? "Unlocked" : "Locked"}</span>
+            <small class="text-muted">${escapeHtml(item.unlockDate)}</small>
+          </div>
+          <h5 class="fw-bold">${escapeHtml(item.title)}</h5>
+          <p class="text-secondary flex-grow-1" style="white-space:pre-line">${unlocked ? escapeHtml(item.content) : "This letter is still sealed. 💌"}</p>
+          ${!unlocked ? `<div class="text-muted small mb-3"><i class="bi bi-lock-fill me-1"></i>${days} day(s) left</div>` : ""}
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-primary rounded-pill flex-fill edit-capsule"><i class="bi bi-pencil"></i> Edit</button>
+            <button class="btn btn-sm btn-outline-danger rounded-pill flex-fill delete-capsule"><i class="bi bi-trash"></i> Delete</button>
+          </div>
+        </div>
+      </div>`;
+    col.querySelector(".edit-capsule").addEventListener("click", () => openCapsuleEditor(item));
+    col.querySelector(".delete-capsule").addEventListener("click", () => deleteRecord("capsules", item));
+    container.appendChild(col);
   });
 }
 
-function featureOpenBucketEditor(item) {
-  $("bucketTitle").value = item.title || "";
-  $("bucketCategory").value = item.category || "Travel";
-  $("bucketForm").dataset.editingId = item.id;
-  const title = document.querySelector("#addBucketModal .modal-title");
-  if (title) title.textContent = "Edit Bucket Goal";
-  showModal("addBucketModal");
-}
-
-$("bucketForm")?.addEventListener("submit", async event => {
-  const id = $("bucketForm").dataset.editingId;
-  if (!id) return;
-
-  event.preventDefault();
-  event.stopImmediatePropagation();
-
-  const button = event.submitter;
-  button.disabled = true;
-  try {
-    const old = featureBucketCache.find(x => x.id === id) || {};
-    await updateDoc(doc(db, "bucketList", id), {
-      title: $("bucketTitle").value.trim(),
-      category: $("bucketCategory").value,
-      completed: old.completed || false,
-      photo: old.photo || "",
-      updatedAt: serverTimestamp()
-    });
-    $("bucketForm").reset();
-    delete $("bucketForm").dataset.editingId;
-    const title = document.querySelector("#addBucketModal .modal-title");
-    if (title) title.textContent = "Add Bucket Goal";
-    hideModal("addBucketModal");
-  } catch (error) {
-    alert(`Unable to update goal.\n\n${error.message}`);
-  } finally {
-    button.disabled = false;
+function openCapsuleEditor(item = null) {
+  $("capsuleForm").reset();
+  $("capsuleId").value = item?.id || "";
+  $("capsuleFormTitle").textContent = item ? "Edit Letter / Capsule" : "Create Time Capsule / Letter";
+  $("saveCapsuleBtn").textContent = item ? "Update Letter" : "Save Letter";
+  if (item) {
+    $("capTitle").value = item.title || "";
+    $("capUnlockDate").value = item.unlockDate || "";
+    $("capContent").value = item.content || "";
   }
-}, true);
-
-/* -------------------------
-   NEW LETTERS
-   ------------------------- */
-
-function featureListenLetters() {
-  const q = query(collection(db, "letters"), orderBy("createdAt", "desc"));
-  onSnapshot(q, snapshot => {
-    featureState.letters = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    featureRenderLetters();
-    featureRenderAllExtras();
-  }, error => console.error("Letters realtime error:", error));
+  showModal("capsuleModal");
 }
+document.querySelector('[data-bs-target="#capsuleModal"]').addEventListener("click", () => openCapsuleEditor());
+$("capsuleForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  const id = $("capsuleId").value;
+  const payload = {
+    title: $("capTitle").value.trim(),
+    unlockDate: $("capUnlockDate").value,
+    content: $("capContent").value.trim(),
+    updatedAt: serverTimestamp()
+  };
+  try {
+    if (id) await updateDoc(doc(db, "capsules", id), payload);
+    else await addDoc(collection(db, "capsules"), { ...payload, createdAt: serverTimestamp() });
+    event.target.reset(); $("capsuleId").value = ""; hideModal("capsuleModal");
+  } catch (e) { alert(`Unable to save letter.\n\n${e.message}`); }
+});
 
-function featureRenderLetters() {
-  const c = $("lettersContainer");
-  if (!c) return;
-  c.innerHTML = featureState.letters.length ? "" : `<div class="col-12 text-center text-muted py-5">No letters yet.</div>`;
+/* =========================================================
+   BUCKET LIST + COMPLETION TRACKING
+   ========================================================= */
 
-  featureState.letters.forEach(item => {
+function renderBucketList() {
+  const container = $("bucketListContainer");
+  if (!container) return;
+  container.innerHTML = state.bucketList.length ? "" : `<div class="col-12 text-center text-muted py-5">No bucket goals yet.</div>`;
+
+  const total = state.bucketList.length;
+  const completed = state.bucketList.filter(x => x.completed).length;
+  const pct = total ? Math.round((completed / total) * 100) : 0;
+  $("bucketProgressText").textContent = `${completed} of ${total} goals completed • ${pct}%`;
+  $("bucketProgressBar").style.width = `${pct}%`;
+
+  state.bucketList.forEach(item => {
     const col = document.createElement("div");
     col.className = "col-md-6";
     col.innerHTML = `
       <div class="card border-0 shadow-sm rounded-4 h-100 p-3">
-        <div class="card-body">
-          <span class="badge bg-danger-subtle text-danger mb-2">Letter</span>
-          <h5 class="fw-bold">${escapeHtml(item.title || "")}</h5>
-          <p style="white-space:pre-line">${escapeHtml(item.content || "")}</p>
-          <div class="feature-action-row">
-            <button type="button" class="btn btn-sm btn-outline-danger edit-letter">Edit</button>
-            <button type="button" class="btn btn-sm btn-outline-secondary delete-letter">Delete</button>
+        <div class="d-flex align-items-start gap-3">
+          <input class="form-check-input fs-5 mt-1 bucket-check" type="checkbox" ${item.completed ? "checked" : ""}>
+          <div class="flex-grow-1">
+            <span class="badge bg-light text-dark border mb-1">${escapeHtml(item.category)}</span>
+            <h6 class="fw-bold mb-1 ${item.completed ? "text-decoration-line-through text-muted" : ""}">${escapeHtml(item.title)}</h6>
+            ${item.photo ? `<img src="${escapeHtml(safeUrl(item.photo))}" class="img-fluid rounded-3 mt-2" style="max-height:180px;object-fit:cover;width:100%" alt="">` : ""}
+            <div class="d-flex gap-2 mt-3">
+              <button class="btn btn-sm btn-outline-primary rounded-pill edit-bucket"><i class="bi bi-pencil"></i></button>
+              <button class="btn btn-sm btn-outline-danger rounded-pill delete-bucket"><i class="bi bi-trash"></i></button>
+            </div>
           </div>
         </div>
       </div>`;
-    col.querySelector(".edit-letter").onclick = () => {
-      $("featureLetterId").value = item.id;
-      $("featureLetterTitle").value = item.title || "";
-      $("featureLetterContent").value = item.content || "";
-      showModal("featureLetterModal");
-    };
-    col.querySelector(".delete-letter").onclick = async () => {
-      if (featureConfirm("Delete this letter?")) await deleteDoc(doc(db, "letters", item.id));
-    };
-    c.appendChild(col);
+    const check = col.querySelector(".bucket-check");
+    check.addEventListener("change", () => {
+      if (!item.completed) {
+        $("completeBucketId").value = item.id;
+        showModal("completeBucketModal");
+      } else {
+        updateDoc(doc(db, "bucketList", item.id), { completed: false, updatedAt: serverTimestamp() });
+      }
+    });
+    col.querySelector(".edit-bucket").addEventListener("click", () => openBucketEditor(item));
+    col.querySelector(".delete-bucket").addEventListener("click", () => deleteRecord("bucketList", item));
+    container.appendChild(col);
   });
 }
 
-$("featureLetterForm")?.addEventListener("submit", async e => {
-  e.preventDefault();
-  const id = $("featureLetterId").value;
-  const data = {
-    title: $("featureLetterTitle").value.trim(),
-    content: $("featureLetterContent").value.trim(),
-    updatedAt: serverTimestamp()
-  };
-  if (id) await updateDoc(doc(db, "letters", id), data);
-  else await addDoc(collection(db, "letters"), { ...data, createdAt: serverTimestamp() });
-  e.target.reset();
-  hideModal("featureLetterModal");
+function openBucketEditor(item = null) {
+  $("bucketForm").reset();
+  $("bucketId").value = item?.id || "";
+  $("bucketFormTitle").textContent = item ? "Edit Bucket Goal" : "Add Bucket Goal";
+  if (item) { $("bucketTitle").value = item.title || ""; $("bucketCategory").value = item.category || "Travel"; }
+  showModal("bucketModal");
+}
+document.querySelector('[data-bs-target="#bucketModal"]').addEventListener("click", () => openBucketEditor());
+$("bucketForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  const id = $("bucketId").value;
+  const payload = { title: $("bucketTitle").value.trim(), category: $("bucketCategory").value, updatedAt: serverTimestamp() };
+  try {
+    if (id) await updateDoc(doc(db, "bucketList", id), payload);
+    else await addDoc(collection(db, "bucketList"), { ...payload, completed: false, photo: "", photoPath: "", createdAt: serverTimestamp() });
+    event.target.reset(); $("bucketId").value = ""; hideModal("bucketModal");
+  } catch (e) { alert(`Unable to save goal.\n\n${e.message}`); }
 });
 
-$("addLetterButton")?.addEventListener("click", () => {
-  $("featureLetterForm").reset();
-  $("featureLetterId").value = "";
-  showModal("featureLetterModal");
+$("completeBucketForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  const id = $("completeBucketId").value;
+  if (!id) return;
+  const button = event.submitter;
+  button.disabled = true;
+  try {
+    let photo = { url: "", path: "" };
+    const file = $("completePhoto").files?.[0];
+    if (file) photo = await uploadToDrive(file, "bucket-completions");
+    const old = state.bucketList.find(x => x.id === id);
+    await updateDoc(doc(db, "bucketList", id), {
+      completed: true, photo: photo.url, photoPath: photo.path, completedAt: serverTimestamp(), updatedAt: serverTimestamp()
+    });
+    if (old?.photoPath && file) await removeDriveFile(old.photoPath);
+    event.target.reset(); $("completeBucketId").value = ""; hideModal("completeBucketModal");
+  } catch (e) {
+    alert(`Unable to complete goal.\n\n${e.message}`);
+  } finally { button.disabled = false; }
 });
 
-/* -------------------------
-   PLACES
-   ------------------------- */
+/* =========================================================
+   PLACES + GOOGLE MAPS LINKS
+   ========================================================= */
 
-function featureListenPlaces() {
-  const q = query(collection(db, "places"), orderBy("createdAt", "desc"));
-  onSnapshot(q, snapshot => {
-    featureState.places = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    featureRenderPlaces();
-    featureRenderAllExtras();
-  }, error => console.error("Places realtime error:", error));
+function mapsUrl(item) {
+  const explicit = safeUrl(item.mapUrl);
+  if (explicit) return explicit;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.address || item.name || "")}`;
 }
 
-function featureRenderPlaces() {
-  const c = $("placesContainer");
-  if (!c) return;
-  c.innerHTML = featureState.places.length ? "" : `<div class="col-12 text-center text-muted py-5">No places saved yet.</div>`;
-
-  featureState.places.forEach(item => {
-    const col = document.createElement("div");
-    col.className = "col-md-6 col-lg-4";
-    const maps = safeUrl(item.mapsUrl);
-    col.innerHTML = `
-      <div class="card border-0 shadow-sm rounded-4 h-100 p-3">
-        <div class="card-body">
-          <i class="bi bi-geo-alt-fill text-primary fs-3"></i>
-          <h5 class="fw-bold mt-2">${escapeHtml(item.name || "")}</h5>
-          <p class="text-muted">${escapeHtml(item.address || "")}</p>
-          <p style="white-space:pre-line">${escapeHtml(item.notes || "")}</p>
-          <div class="feature-action-row">
-            ${maps ? `<a class="btn btn-sm btn-outline-primary" href="${escapeHtml(maps)}" target="_blank" rel="noopener">Google Maps</a>` : ""}
-            <button type="button" class="btn btn-sm btn-outline-primary edit-place">Edit</button>
-            <button type="button" class="btn btn-sm btn-outline-danger delete-place">Delete</button>
-          </div>
-        </div>
-      </div>`;
-    col.querySelector(".edit-place").onclick = () => {
-      $("featurePlaceId").value = item.id;
-      $("featurePlaceName").value = item.name || "";
-      $("featurePlaceAddress").value = item.address || "";
-      $("featurePlaceMaps").value = item.mapsUrl || "";
-      $("featurePlaceNotes").value = item.notes || "";
-      showModal("featurePlaceModal");
-    };
-    col.querySelector(".delete-place").onclick = async () => {
-      if (featureConfirm("Delete this place?")) await deleteDoc(doc(db, "places", item.id));
-    };
-    c.appendChild(col);
-  });
-}
-
-$("featurePlaceForm")?.addEventListener("submit", async e => {
-  e.preventDefault();
-  const id = $("featurePlaceId").value;
-  const data = {
-    name: $("featurePlaceName").value.trim(),
-    address: $("featurePlaceAddress").value.trim(),
-    mapsUrl: $("featurePlaceMaps").value.trim(),
-    notes: $("featurePlaceNotes").value.trim(),
-    updatedAt: serverTimestamp()
-  };
-  if (id) await updateDoc(doc(db, "places", id), data);
-  else await addDoc(collection(db, "places"), { ...data, createdAt: serverTimestamp() });
-  e.target.reset();
-  hideModal("featurePlaceModal");
-});
-
-$("addPlaceButton")?.addEventListener("click", () => {
-  $("featurePlaceForm").reset();
-  $("featurePlaceId").value = "";
-  showModal("featurePlaceModal");
-});
-
-/* -------------------------
-   COUNTDOWNS
-   ------------------------- */
-
-function featureListenCountdowns() {
-  const q = query(collection(db, "countdowns"), orderBy("targetDate", "asc"));
-  onSnapshot(q, snapshot => {
-    featureState.countdowns = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    featureRenderCountdowns();
-    featureRenderAllExtras();
-  }, error => console.error("Countdown realtime error:", error));
-}
-
-function featureCountdownText(target) {
-  const diff = new Date(target).getTime() - Date.now();
-  if (diff <= 0) return "It's time! 🎉";
-  const days = Math.floor(diff / 86400000);
-  const hours = Math.floor(diff / 3600000) % 24;
-  const minutes = Math.floor(diff / 60000) % 60;
-  const seconds = Math.floor(diff / 1000) % 60;
-  return `${days}d ${hours}h ${minutes}m ${seconds}s`;
-}
-
-function featureRenderCountdowns() {
-  const c = $("countdownsContainer");
-  if (!c) return;
-  c.innerHTML = featureState.countdowns.length ? "" : `<div class="col-12 text-center text-muted py-5">No countdowns yet.</div>`;
-
-  featureState.countdowns.forEach(item => {
+function renderPlaces() {
+  const container = $("placesContainer");
+  if (!container) return;
+  container.innerHTML = state.places.length ? "" : `<div class="col-12 text-center text-muted py-5">No places saved yet.</div>`;
+  state.places.forEach(item => {
     const col = document.createElement("div");
     col.className = "col-md-6 col-lg-4";
     col.innerHTML = `
-      <div class="card border-0 shadow-sm rounded-4 h-100 p-3">
-        <div class="card-body">
-          <span class="badge bg-warning text-dark">Countdown</span>
-          <h5 class="fw-bold mt-2">${escapeHtml(item.title || "")}</h5>
-          <div class="feature-countdown" data-feature-target="${escapeHtml(item.targetDate || "")}">${escapeHtml(featureCountdownText(item.targetDate))}</div>
-          <p class="text-muted">${escapeHtml(item.description || "")}</p>
-          <div class="feature-action-row">
-            <button type="button" class="btn btn-sm btn-outline-primary edit-countdown">Edit</button>
-            <button type="button" class="btn btn-sm btn-outline-danger delete-countdown">Delete</button>
+      <div class="card place-card border-0 shadow-sm rounded-4 h-100 p-3">
+        <div class="d-flex align-items-start gap-3">
+          <div class="rounded-circle bg-primary-subtle p-3 text-primary"><i class="bi bi-geo-alt-fill fs-4"></i></div>
+          <div class="flex-grow-1">
+            <h5 class="fw-bold mb-1">${escapeHtml(item.name)}</h5>
+            <p class="text-muted small mb-2">${escapeHtml(item.address)}</p>
+            <p class="small text-secondary" style="white-space:pre-line">${escapeHtml(item.notes)}</p>
+            <div class="d-flex gap-2 mt-3">
+              <a class="btn btn-sm btn-primary rounded-pill flex-fill" target="_blank" rel="noopener" href="${escapeHtml(mapsUrl(item))}">
+                <i class="bi bi-google me-1"></i>Google Maps
+              </a>
+              <button class="btn btn-sm btn-outline-primary rounded-pill edit-place"><i class="bi bi-pencil"></i></button>
+              <button class="btn btn-sm btn-outline-danger rounded-pill delete-place"><i class="bi bi-trash"></i></button>
+            </div>
           </div>
         </div>
       </div>`;
-    col.querySelector(".edit-countdown").onclick = () => {
-      $("featureCountdownId").value = item.id;
-      $("featureCountdownTitle").value = item.title || "";
-      $("featureCountdownDate").value = item.targetDate || "";
-      $("featureCountdownDescription").value = item.description || "";
-      showModal("featureCountdownModal");
-    };
-    col.querySelector(".delete-countdown").onclick = async () => {
-      if (featureConfirm("Delete this countdown?")) await deleteDoc(doc(db, "countdowns", item.id));
-    };
-    c.appendChild(col);
+    col.querySelector(".edit-place").addEventListener("click", () => openPlaceEditor(item));
+    col.querySelector(".delete-place").addEventListener("click", () => deleteRecord("places", item));
+    container.appendChild(col);
   });
 }
 
-$("featureCountdownForm")?.addEventListener("submit", async e => {
-  e.preventDefault();
-  const id = $("featureCountdownId").value;
-  const data = {
-    title: $("featureCountdownTitle").value.trim(),
-    targetDate: $("featureCountdownDate").value,
-    description: $("featureCountdownDescription").value.trim(),
-    updatedAt: serverTimestamp()
-  };
-  if (id) await updateDoc(doc(db, "countdowns", id), data);
-  else await addDoc(collection(db, "countdowns"), { ...data, createdAt: serverTimestamp() });
-  e.target.reset();
-  hideModal("featureCountdownModal");
-});
-
-$("addCountdownButton")?.addEventListener("click", () => {
-  $("featureCountdownForm").reset();
-  $("featureCountdownId").value = "";
-  showModal("featureCountdownModal");
-});
-
-setInterval(() => {
-  document.querySelectorAll("[data-feature-target]").forEach(el => {
-    el.textContent = featureCountdownText(el.dataset.featureTarget);
-  });
-}, 1000);
-
-/* -------------------------
-   GLOBAL SEARCH
-   ------------------------- */
-
-function featureSearchItems() {
-  return [
-    ...loadedMemories.map(x => ({ type: "Memory", title: x.title, text: x.note })),
-    ...featureState.letters.map(x => ({ type: "Letter", title: x.title, text: x.content })),
-    ...featureCapsuleCache.map(x => ({ type: "Capsule", title: x.title, text: x.content })),
-    ...featureBucketCache.map(x => ({ type: "Bucket Goal", title: x.title, text: x.category })),
-    ...featureState.places.map(x => ({ type: "Place", title: x.name, text: `${x.address || ""} ${x.notes || ""}` })),
-    ...featureState.countdowns.map(x => ({ type: "Countdown", title: x.title, text: x.description }))
-  ];
-}
-
-function featureRunSearch() {
-  const q = $("globalSearch")?.value.trim().toLowerCase();
-  const box = $("searchResults");
-  if (!box) return;
-
-  if (!q) {
-    box.classList.add("d-none");
-    box.innerHTML = "";
-    return;
+function openPlaceEditor(item = null) {
+  $("placeForm").reset();
+  $("placeId").value = item?.id || "";
+  $("placeFormTitle").textContent = item ? "Edit Place" : "Add Place";
+  if (item) {
+    $("placeName").value = item.name || "";
+    $("placeAddress").value = item.address || "";
+    $("placeNotes").value = item.notes || "";
+    $("placeMapUrl").value = item.mapUrl || "";
   }
+  showModal("addPlaceModal");
+}
+document.querySelectorAll('[data-bs-target="#addPlaceModal"]').forEach(btn => btn.addEventListener("click", () => openPlaceEditor()));
+$("placeForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  const id = $("placeId").value;
+  const payload = {
+    name: $("placeName").value.trim(), address: $("placeAddress").value.trim(),
+    notes: $("placeNotes").value.trim(), mapUrl: $("placeMapUrl").value.trim(), updatedAt: serverTimestamp()
+  };
+  try {
+    if (id) await updateDoc(doc(db, "places", id), payload);
+    else await addDoc(collection(db, "places"), { ...payload, createdAt: serverTimestamp() });
+    event.target.reset(); $("placeId").value = ""; hideModal("addPlaceModal");
+  } catch (e) { alert(`Unable to save place.\n\n${e.message}`); }
+});
 
-  const results = featureSearchItems().filter(x =>
-    `${x.title || ""} ${x.text || ""}`.toLowerCase().includes(q)
-  );
+/* =========================================================
+   COUNTDOWNS
+   ========================================================= */
+
+function countdownParts(target) {
+  const diff = new Date(target).getTime() - Date.now();
+  const seconds = Math.max(0, Math.floor(diff / 1000));
+  return {
+    diff, days: Math.floor(seconds / 86400),
+    hours: Math.floor((seconds % 86400) / 3600),
+    minutes: Math.floor((seconds % 3600) / 60),
+    seconds: seconds % 60
+  };
+}
+
+function renderCountdowns() {
+  const container = $("countdownsContainer");
+  if (!container) return;
+  container.innerHTML = state.countdowns.length ? "" : `<div class="col-12 text-center text-muted py-5">No countdowns yet.</div>`;
+  state.countdowns.forEach(item => {
+    const p = countdownParts(item.targetDate);
+    const done = p.diff <= 0;
+    const col = document.createElement("div");
+    col.className = "col-md-6 col-lg-4";
+    col.innerHTML = `
+      <div class="card countdown-card border-0 shadow-sm rounded-4 h-100 p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <span class="badge ${done ? "bg-success" : "bg-danger"}">${done ? "It's time! 🎉" : "Counting down"}</span>
+          <small class="text-muted">${escapeHtml(formatDateTime(item.targetDate))}</small>
+        </div>
+        <h4 class="fw-bold">${escapeHtml(item.title)}</h4>
+        <p class="text-secondary">${escapeHtml(item.description)}</p>
+        <div class="countdown-number display-6 fw-bold text-danger mb-3" data-countdown="${escapeHtml(item.id)}">
+          ${done ? "00d 00h 00m 00s" : `${p.days}d ${String(p.hours).padStart(2,"0")}h ${String(p.minutes).padStart(2,"0")}m ${String(p.seconds).padStart(2,"0")}s`}
+        </div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-primary rounded-pill flex-fill edit-countdown"><i class="bi bi-pencil"></i> Edit</button>
+          <button class="btn btn-sm btn-outline-danger rounded-pill flex-fill delete-countdown"><i class="bi bi-trash"></i> Delete</button>
+        </div>
+      </div>`;
+    col.querySelector(".edit-countdown").addEventListener("click", () => openCountdownEditor(item));
+    col.querySelector(".delete-countdown").addEventListener("click", () => deleteRecord("countdowns", item));
+    container.appendChild(col);
+  });
+}
+
+function tickCountdowns() {
+  document.querySelectorAll("[data-countdown]").forEach(el => {
+    const item = state.countdowns.find(x => x.id === el.dataset.countdown);
+    if (!item) return;
+    const p = countdownParts(item.targetDate);
+    el.textContent = p.diff <= 0 ? "00d 00h 00m 00s" :
+      `${p.days}d ${String(p.hours).padStart(2,"0")}h ${String(p.minutes).padStart(2,"0")}m ${String(p.seconds).padStart(2,"0")}s`;
+  });
+}
+setInterval(tickCountdowns, 1000);
+
+function openCountdownEditor(item = null) {
+  $("countdownForm").reset();
+  $("countdownId").value = item?.id || "";
+  $("countdownFormTitle").textContent = item ? "Edit Countdown" : "Add Countdown";
+  if (item) {
+    $("countdownTitle").value = item.title || "";
+    $("countdownDate").value = item.targetDate || "";
+    $("countdownDescription").value = item.description || "";
+  }
+  showModal("addCountdownModal");
+}
+document.querySelectorAll('[data-bs-target="#addCountdownModal"]').forEach(btn => btn.addEventListener("click", () => openCountdownEditor()));
+$("countdownForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  const id = $("countdownId").value;
+  const payload = {
+    title: $("countdownTitle").value.trim(), targetDate: $("countdownDate").value,
+    description: $("countdownDescription").value.trim(), updatedAt: serverTimestamp()
+  };
+  try {
+    if (id) await updateDoc(doc(db, "countdowns", id), payload);
+    else await addDoc(collection(db, "countdowns"), { ...payload, createdAt: serverTimestamp() });
+    event.target.reset(); $("countdownId").value = ""; hideModal("addCountdownModal");
+  } catch (e) { alert(`Unable to save countdown.\n\n${e.message}`); }
+});
+
+/* =========================================================
+   ACHIEVEMENTS
+   ========================================================= */
+
+function renderAchievements() {
+  const container = $("achievementsContainer");
+  if (!container) return;
+
+  const totalMedia = state.memories.filter(x => x.image || x.video).length;
+  const completed = state.bucketList.filter(x => x.completed).length;
+  const achievements = [
+    ["first-memory", "First Memory", "Save your first memory.", state.memories.length >= 1, "bi-heart-fill"],
+    ["five-memories", "Memory Keeper", "Save 5 memories.", state.memories.length >= 5, "bi-journal-heart-fill"],
+    ["media", "Captured Moments", "Add a photo or video.", totalMedia >= 1, "bi-camera-fill"],
+    ["five-media", "Storyteller", "Collect 5 media memories.", totalMedia >= 5, "bi-images"],
+    ["first-goal", "Dreamer", "Create your first bucket goal.", state.bucketList.length >= 1, "bi-stars"],
+    ["goal-complete", "Goal Getter", "Complete your first bucket goal.", completed >= 1, "bi-check-circle-fill"],
+    ["three-goals", "Adventure Mode", "Complete 3 bucket goals.", completed >= 3, "bi-trophy-fill"],
+    ["letter", "Love Letter", "Create your first letter/capsule.", state.capsules.length >= 1, "bi-envelope-heart-fill"],
+    ["place", "Explorer", "Save your first place.", state.places.length >= 1, "bi-geo-alt-fill"],
+    ["countdown", "Looking Forward", "Create your first countdown.", state.countdowns.length >= 1, "bi-hourglass-split"]
+  ];
+
+  container.innerHTML = achievements.map(a => `
+    <div class="col-6 col-md-4 col-lg-3">
+      <div class="card achievement-card ${a[3] ? "unlocked" : "locked"} border-0 shadow-sm rounded-4 h-100 p-3 text-center">
+        <i class="bi ${a[4]} display-6 ${a[3] ? "text-warning" : "text-secondary"}"></i>
+        <h6 class="fw-bold mt-2">${escapeHtml(a[1])}</h6>
+        <p class="small text-muted mb-0">${escapeHtml(a[2])}</p>
+        <span class="badge ${a[3] ? "bg-warning text-dark" : "bg-light text-secondary"} mt-3">${a[3] ? "Unlocked" : "Locked"}</span>
+      </div>
+    </div>`).join("");
+}
+
+/* =========================================================
+   GLOBAL SEARCH
+   ========================================================= */
+
+function searchText(item) {
+  return Object.values(item).filter(v => typeof v === "string").join(" ").toLowerCase();
+}
+
+function renderSearch() {
+  const queryText = state.search.trim().toLowerCase();
+  const box = $("searchResults");
+  if (!queryText) { box.classList.add("d-none"); return; }
+
+  const groups = [
+    ["Memory", state.memories, "bi-clock-history"],
+    ["Letter", state.capsules, "bi-envelope-paper-heart"],
+    ["Bucket Goal", state.bucketList, "bi-check2-square"],
+    ["Place", state.places, "bi-geo-alt"],
+    ["Countdown", state.countdowns, "bi-calendar-heart"]
+  ];
+
+  const matches = [];
+  groups.forEach(([type, items, icon]) => items.forEach(item => {
+    if (searchText(item).includes(queryText)) matches.push({ type, icon, item });
+  }));
 
   box.classList.remove("d-none");
-  box.innerHTML = results.length
-    ? results.map(x => `
-      <div class="feature-search-result">
-        <span class="badge bg-light text-dark border">${escapeHtml(x.type)}</span>
-        <strong class="ms-2">${escapeHtml(x.title || "")}</strong>
-        <div class="small text-muted">${escapeHtml(String(x.text || "").slice(0, 180))}</div>
-      </div>`).join("")
-    : `<div class="text-muted py-2">No matches found.</div>`;
+  box.innerHTML = `
+    <div class="card border-0 shadow-sm rounded-4 p-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="fw-bold mb-0">Search results</h6><span class="badge bg-primary">${matches.length}</span>
+      </div>
+      ${matches.length ? matches.map(m => `
+        <button class="search-result-card btn btn-light w-100 text-start mb-2 rounded-3" data-type="${escapeHtml(m.type)}" data-id="${escapeHtml(m.item.id)}">
+          <i class="bi ${m.icon} text-primary me-2"></i>
+          <strong>${escapeHtml(m.item.title || m.item.name || "Untitled")}</strong>
+          <small class="text-muted ms-2">${escapeHtml(m.type)}</small>
+        </button>`).join("") : `<div class="text-muted small py-2">Nothing found.</div>`}
+    </div>`;
+
+  box.querySelectorAll("[data-id]").forEach(btn => btn.addEventListener("click", () => {
+    const type = btn.dataset.type, id = btn.dataset.id;
+    if (type === "Memory") viewMemory(id);
+    if (type === "Letter") { const x = state.capsules.find(i => i.id === id); if (x) openCapsuleEditor(x); }
+    if (type === "Bucket Goal") { const x = state.bucketList.find(i => i.id === id); if (x) openBucketEditor(x); }
+    if (type === "Place") { const x = state.places.find(i => i.id === id); if (x) openPlaceEditor(x); }
+    if (type === "Countdown") { const x = state.countdowns.find(i => i.id === id); if (x) openCountdownEditor(x); }
+  }));
 }
 
-$("globalSearch")?.addEventListener("input", featureRunSearch);
-$("clearSearch")?.addEventListener("click", () => {
-  $("globalSearch").value = "";
-  featureRunSearch();
-});
+$("globalSearch").addEventListener("input", e => { state.search = e.target.value; renderSearch(); });
 
-/* -------------------------
-   GALLERY + ACHIEVEMENTS
-   ------------------------- */
+/* =========================================================
+   DELETE HELPER
+   ========================================================= */
 
-function featureRenderGallery() {
-  const c = $("galleryContainer");
-  if (!c) return;
-
-  const media = [];
-  loadedMemories.forEach(item => {
-    if (item.image) media.push({ type: "image", url: item.image, title: item.title, caption: "Memory photo" });
-    if (item.video) media.push({ type: "video", url: item.video, title: item.title, caption: "Memory video" });
-  });
-  featureBucketCache.forEach(item => {
-    if (item.photo) media.push({ type: "image", url: item.photo, title: item.title, caption: "Bucket-list celebration" });
-  });
-
-  c.innerHTML = media.length ? "" : `<div class="col-12 text-center text-muted py-5">No photos or videos uploaded yet.</div>`;
-
-  media.forEach(item => {
-    const col = document.createElement("div");
-    col.className = "col-sm-6 col-lg-4";
-    col.innerHTML = `
-      <div class="feature-media-card">
-        ${item.type === "image"
-          ? `<img src="${escapeHtml(safeUrl(item.url))}" alt="">`
-          : `<video src="${escapeHtml(safeUrl(item.url))}" controls preload="metadata"></video>`}
-        <div class="card-body">
-          <strong>${escapeHtml(item.title || "")}</strong>
-          <div class="text-muted small">${escapeHtml(item.caption || "")}</div>
-        </div>
-      </div>`;
-    c.appendChild(col);
-  });
-}
-
-const featureAchievements = [
-  ["📸", "Memory Maker", "Add your first memory.", () => loadedMemories.length >= 1],
-  ["💌", "Storyteller", "Create your first letter.", () => featureState.letters.length >= 1],
-  ["⏳", "Timekeeper", "Create your first capsule.", () => featureCapsuleCache.length >= 1],
-  ["🎯", "Dream Builder", "Create five bucket goals.", () => featureBucketCache.length >= 5],
-  ["🏆", "Dream Achiever", "Complete a bucket goal.", () => featureBucketCache.some(x => x.completed)],
-  ["🗺️", "Explorer", "Save your first place.", () => featureState.places.length >= 1],
-  ["⏰", "Counting Down", "Create your first countdown.", () => featureState.countdowns.length >= 1],
-  ["🎥", "Media Collector", "Upload a photo or video.", () => loadedMemories.some(x => x.image || x.video)]
-];
-
-function featureRenderAchievements() {
-  const c = $("achievementsContainer");
-  if (!c) return;
-
-  let unlocked = 0;
-  c.innerHTML = "";
-
-  featureAchievements.forEach(([icon, title, description, test]) => {
-    const ok = test();
-    if (ok) unlocked++;
-
-    const col = document.createElement("div");
-    col.className = "col-sm-6 col-lg-3";
-    col.innerHTML = `
-      <div class="card feature-achievement ${ok ? "" : "locked"} border-0 shadow-sm rounded-4 h-100 p-3">
-        <div class="card-body">
-          <div class="feature-achievement-icon">${icon}</div>
-          <h6 class="fw-bold mt-2">${escapeHtml(title)}</h6>
-          <p class="small text-muted">${escapeHtml(description)}</p>
-          <span class="badge ${ok ? "bg-success" : "bg-secondary"}">${ok ? "Unlocked" : "Locked"}</span>
-        </div>
-      </div>`;
-    c.appendChild(col);
-  });
-
-  $("achievementScore").textContent = `${unlocked}/${featureAchievements.length} unlocked`;
-}
-
-function featureRenderAllExtras() {
-  featureRenderGallery();
-  featureRenderAchievements();
-  featureRunSearch();
-}
-
-/* Keep local caches synchronized by listening to the same Firestore collections. */
-onSnapshot(
-  query(collection(db, "capsules"), orderBy("unlockDate", "asc")),
-  snapshot => {
-    featureCapsuleCache = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    featureDecorateCapsules();
-    featureRenderAllExtras();
-  },
-  error => console.error("Feature capsule cache error:", error)
-);
-
-onSnapshot(
-  query(collection(db, "bucketList"), orderBy("createdAt", "desc")),
-  snapshot => {
-    featureBucketCache = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    featureDecorateBuckets();
-    featureRenderAllExtras();
-  },
-  error => console.error("Feature bucket cache error:", error)
-);
-
-featureListenLetters();
-featureListenPlaces();
-featureListenCountdowns();
-
-/* The original timeline listener repaints cards asynchronously. */
-setInterval(() => {
-  featureDecorateMemoryCards();
-  featureDecorateCapsules();
-  featureDecorateBuckets();
-  featureRenderAllExtras();
-}, 1200);
-
-/* Reset the original modal wording when the user starts a brand-new item. */
-$("addMemoryModal")?.addEventListener("show.bs.modal", () => {
-  if (!$("memoryForm").dataset.editingId) {
-    const title = document.querySelector("#addMemoryModal .modal-title");
-    if (title) title.textContent = "Add New Memory";
-    $("saveMemoryBtn").innerHTML = '<i class="bi bi-cloud-arrow-up me-1"></i> Save Memory';
+async function deleteRecord(collectionName, item) {
+  try {
+    await deleteDoc(doc(db, collectionName, item.id));
+    if (item.imagePath) await removeDriveFile(item.imagePath);
+    if (item.videoPath) await removeDriveFile(item.videoPath);
+    if (item.photoPath) await removeDriveFile(item.photoPath);
+  } catch (e) {
+    console.error(e);
+    alert(`Unable to delete item.\n\n${e.message}`);
   }
+}
+
+/* =========================================================
+   PREVIEWS + MODAL RESET
+   ========================================================= */
+
+$("memImage").addEventListener("change", () => {
+  const file = $("memImage").files?.[0];
+  const img = $("memoryImagePreview");
+  if (!file) { img.classList.add("d-none"); return; }
+  img.src = URL.createObjectURL(file); img.classList.remove("d-none");
 });
 
-$("addCapsuleModal")?.addEventListener("show.bs.modal", () => {
-  if (!$("capsuleForm").dataset.editingId) {
-    const title = document.querySelector("#addCapsuleModal .modal-title");
-    if (title) title.textContent = "Create Time Capsule";
-  }
-});
-
-$("addBucketModal")?.addEventListener("show.bs.modal", () => {
-  if (!$("bucketForm").dataset.editingId) {
-    const title = document.querySelector("#addBucketModal .modal-title");
-    if (title) title.textContent = "Add Bucket Goal";
-  }
-});
-
-/* -------------------------
-   MEDIA PREVIEW FOR VIDEO
-   ------------------------- */
-
-$("memVideo")?.addEventListener("change", () => {
+$("memVideo").addEventListener("change", () => {
   const file = $("memVideo").files?.[0];
-  if (!file) return;
-  if (!file.type.startsWith("video/")) {
-    $("memVideo").value = "";
-    alert("Please select a video file.");
+  const video = $("memoryVideoPreview");
+  if (!file) { video.classList.add("d-none"); return; }
+  video.src = URL.createObjectURL(file); video.classList.remove("d-none");
+});
+
+$("completePhoto").addEventListener("change", () => {
+  const file = $("completePhoto").files?.[0];
+  const img = $("completePhotoPreview");
+  if (!file) { img.classList.add("d-none"); return; }
+  img.src = URL.createObjectURL(file); img.classList.remove("d-none");
+});
+
+["memoryModal", "capsuleModal", "bucketModal", "addPlaceModal", "addCountdownModal"].forEach(id => {
+  $(id).addEventListener("hidden.bs.modal", () => {
+    if (id === "memoryModal") {
+      $("memoryForm").reset(); $("memoryId").value = ""; resetUploadProgress();
+      $("memoryImagePreview").classList.add("d-none"); $("memoryVideoPreview").classList.add("d-none");
+    }
+    if (id === "capsuleModal") $("capsuleId").value = "";
+    if (id === "bucketModal") $("bucketId").value = "";
+    if (id === "addPlaceModal") $("placeId").value = "";
+    if (id === "addCountdownModal") $("countdownId").value = "";
+  });
+});
+
+setSyncStatus("online", "Connecting...");
+
+/* =========================================================
+   GOOGLE DRIVE UI
+   ========================================================= */
+
+$("connectDriveBtn")?.addEventListener("click", async () => {
+  const config = getSavedDriveConfig();
+  if (!config.clientId || config.clientId.includes("PASTE_YOUR_")) {
+    $("googleDriveClientIdInput").value = "";
+    $("googleDriveFolderNameInput").value = config.folderName || DRIVE_FOLDER_NAME;
+    showModal("driveSetupModal");
     return;
   }
-  if (file.size > 500 * 1024 * 1024) {
-    $("memVideo").value = "";
-    alert("Video is too large. Maximum supported size is 500 MB.");
+
+  try {
+    const ok = await connectGoogleDrive(true);
+    if (ok) setDriveStatus(true, "Connected");
+  } catch (error) {
+    console.error(error);
+    alert(`Unable to connect Google Drive.\n\n${error.message}`);
   }
 });
+
+$("saveDriveSetupBtn")?.addEventListener("click", async () => {
+  const clientId = $("googleDriveClientIdInput").value.trim();
+  const folderName = $("googleDriveFolderNameInput").value.trim() || DRIVE_FOLDER_NAME;
+
+  if (!clientId || !clientId.endsWith(".apps.googleusercontent.com")) {
+    alert("Enter your Google OAuth Web Client ID.");
+    return;
+  }
+
+  saveDriveConfig(clientId, folderName);
+  driveState.client = null;
+  driveState.accessToken = "";
+  driveState.folderId = "";
+
+  hideModal("driveSetupModal");
+
+  try {
+    initGoogleDriveClient();
+    const ok = await connectGoogleDrive(true);
+    if (ok) {
+      await ensureDriveFolder();
+      setDriveStatus(true, "Connected");
+    }
+  } catch (error) {
+    console.error(error);
+    alert(`Google Drive setup failed.\n\n${error.message}`);
+  }
+});
+
+// Wait for Google Identity Services if the script loads after this module.
+function waitForGoogleDrive() {
+  if (window.google?.accounts?.oauth2) {
+    const config = getSavedDriveConfig();
+    if (config.clientId && !config.clientId.includes("PASTE_YOUR_")) {
+      initGoogleDriveClient();
+      setDriveStatus(false, "Ready to connect");
+    } else {
+      setDriveStatus(false, "Client ID required");
+    }
+    return;
+  }
+  setTimeout(waitForGoogleDrive, 250);
+}
+waitForGoogleDrive();
