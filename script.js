@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
   getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc,
-  query, orderBy, serverTimestamp
+  serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 /* =========================================================
@@ -500,17 +500,57 @@ function resetUploadProgress() {
    ========================================================= */
 
 function subscribe(collectionName, target, orderField, render) {
-  const q = query(collection(db, collectionName), orderBy(orderField, "asc"));
-  onSnapshot(q, snapshot => {
-    state[target] = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    render();
-    renderAchievements();
-    renderSearch();
-    setSyncStatus("online", "Synced");
-  }, error => {
-    console.error(`${collectionName} realtime error:`, error);
-    setSyncStatus("error", "Sync error");
-  });
+  /*
+    IMPORTANT:
+    Do not use a Firestore orderBy() query here.
+
+    The previous version could make a collection listener fail or appear
+    empty when existing documents were created by an older version and do
+    not contain the same ordering field. That made the whole app look
+    disconnected even though Firebase itself was initialized correctly.
+
+    We subscribe directly to the collection, then sort the received data
+    locally. This keeps ALL existing documents visible and avoids requiring
+    a Firestore index/query shape to match every historical document.
+  */
+  const unsubscribe = onSnapshot(
+    collection(db, collectionName),
+    snapshot => {
+      state[target] = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      if (orderField) {
+        state[target].sort((a, b) => {
+          const av = a?.[orderField];
+          const bv = b?.[orderField];
+
+          // Firestore Timestamp
+          if (av?.toMillis && bv?.toMillis) return av.toMillis() - bv.toMillis();
+
+          // Dates / datetime strings
+          const ad = Date.parse(String(av ?? ""));
+          const bd = Date.parse(String(bv ?? ""));
+          if (!Number.isNaN(ad) && !Number.isNaN(bd)) return ad - bd;
+
+          // Numeric values
+          if (typeof av === "number" && typeof bv === "number") return av - bv;
+
+          // Normal strings
+          return String(av ?? "").localeCompare(String(bv ?? ""));
+        });
+      }
+
+      render();
+      renderAchievements();
+      renderSearch();
+      setSyncStatus("online", "Synced");
+    },
+    error => {
+      console.error(`${collectionName} realtime error:`, error);
+      setSyncStatus("error", `Sync error: ${error.code || error.message}`);
+    }
+  );
+
+  return unsubscribe;
 }
 
 subscribe("memories", "memories", "date", renderTimeline);
@@ -518,6 +558,14 @@ subscribe("capsules", "capsules", "unlockDate", renderCapsules);
 subscribe("bucketList", "bucketList", "createdAt", renderBucketList);
 subscribe("places", "places", "createdAt", renderPlaces);
 subscribe("countdowns", "countdowns", "targetDate", renderCountdowns);
+
+window.addEventListener("online", () => {
+  setSyncStatus("online", "Reconnecting...");
+});
+
+window.addEventListener("offline", () => {
+  setSyncStatus("error", "Offline");
+});
 
 /* =========================================================
    MEMORY TIMELINE + GALLERY
