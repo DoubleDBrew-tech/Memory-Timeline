@@ -8,7 +8,7 @@
 /* Touch responsiveness optimization for iOS/Android */
 *, *::before, *::after {
   box-sizing: border-box;
-  -webkit-tap-highlight-color: transparent;
+  -webkit-tap-highlight-color: transparent; /* Removes blue highlight on tap */
 }
 
 body {
@@ -17,13 +17,7 @@ body {
   color: #2d3436;
 }
 
-/* Force mobile touch recognition */
-button, .btn, .nav-link, .card, input[type="checkbox"] {
-  touch-action: manipulation;
-  cursor: pointer;
-}
-
-/* Ensure header buttons sit at the absolute top layer */
+/* Ensure header buttons sit above other elements */
 .touch-safe-header {
   position: relative;
   z-index: 90;
@@ -31,6 +25,11 @@ button, .btn, .nav-link, .card, input[type="checkbox"] {
 .touch-btn {
   position: relative;
   z-index: 100; 
+}
+
+/* Make sure interactable items register native cursor pointers */
+button, .btn, .nav-link, .card, input[type="checkbox"] {
+  cursor: pointer;
 }
 
 /* Header Banner */
