@@ -5,7 +5,7 @@
   --bg-color: #f8f9fa;
 }
 
-/* Touch responsiveness optimization for iOS/iPadOS */
+/* Touch responsiveness optimization for iOS/Android */
 *, *::before, *::after {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
@@ -17,7 +17,7 @@ body {
   color: #2d3436;
 }
 
-/* Force iOS touch recognition */
+/* Force mobile touch recognition */
 button, .btn, .nav-link, .card, input[type="checkbox"] {
   touch-action: manipulation;
   cursor: pointer;
