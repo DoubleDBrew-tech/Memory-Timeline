@@ -1343,7 +1343,6 @@ function publishPlaybackResume() {
    GOOGLE DRIVE UI
    ========================================================= */
 
-*/
 
 $("connectDriveBtn")?.addEventListener("click", async () => {
   const config = getSavedDriveConfig();
