@@ -17,10 +17,20 @@ body {
   color: #2d3436;
 }
 
-/* Ensure buttons and links receive taps on mobile instantly */
+/* Force iOS touch recognition */
 button, .btn, .nav-link, .card, input[type="checkbox"] {
   touch-action: manipulation;
   cursor: pointer;
+}
+
+/* Ensure header buttons sit at the absolute top layer */
+.touch-safe-header {
+  position: relative;
+  z-index: 90;
+}
+.touch-btn {
+  position: relative;
+  z-index: 100; 
 }
 
 /* Header Banner */
