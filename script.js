@@ -106,7 +106,7 @@ const driveState = {
 function openGoogleDriveSetup() {
   const config = getSavedDriveConfig();
   if ($("googleDriveClientIdInput")) $("googleDriveClientIdInput").value =
-    config.clientId && !config.clientId.includes("PASTE_YOUR_") ? config.clientId : "";
+    config.clientId && !config.clientId.includes("1035343182029-e5kbaep69kchplnenphatf83ggqojnsg.apps.googleusercontent.com") ? config.clientId : "";
   if ($("googleDriveFolderNameInput")) $("googleDriveFolderNameInput").value =
     config.folderName || DRIVE_FOLDER_NAME;
   showModal("driveSetupModal");
@@ -144,7 +144,7 @@ function driveIsAuthorized() {
 
 function initGoogleDriveClient() {
   const config = getSavedDriveConfig();
-  if (!config.clientId || config.clientId.includes("PASTE_YOUR_")) {
+  if (!config.clientId || config.clientId.includes("1035343182029-e5kbaep69kchplnenphatf83ggqojnsg.apps.googleusercontent.com")) {
     setDriveStatus(false, "Client ID required");
     return false;
   }
@@ -179,7 +179,7 @@ let driveTokenPromise = null;
 
 async function connectGoogleDrive(forcePrompt = false) {
   const config = getSavedDriveConfig();
-  if (!config.clientId || config.clientId.includes("PASTE_YOUR_")) {
+  if (!config.clientId || config.clientId.includes("1035343182029-e5kbaep69kchplnenphatf83ggqojnsg.apps.googleusercontent.com")) {
     openGoogleDriveSetup();
     return false;
   }
@@ -239,7 +239,7 @@ async function connectGoogleDrive(forcePrompt = false) {
 
 async function restoreGoogleDriveConnection() {
   const config = getSavedDriveConfig();
-  if (!config.clientId || config.clientId.includes("PASTE_YOUR_")) return false;
+  if (!config.clientId || config.clientId.includes("1035343182029-e5kbaep69kchplnenphatf83ggqojnsg.apps.googleusercontent.com")) return false;
   if (!window.google?.accounts?.oauth2) return false;
   if (!driveState.client) initGoogleDriveClient();
   if (!driveState.client || driveIsAuthorized()) return driveIsAuthorized();
@@ -1402,7 +1402,7 @@ function publishPlaybackResume() {
 
 $("connectDriveBtn")?.addEventListener("click", async () => {
   const config = getSavedDriveConfig();
-  if (!config.clientId || config.clientId.includes("PASTE_YOUR_")) {
+  if (!config.clientId || config.clientId.includes("1035343182029-e5kbaep69kchplnenphatf83ggqojnsg.apps.googleusercontent.com")) {
     openGoogleDriveSetup();
     return;
   }
@@ -1449,7 +1449,7 @@ $("saveDriveSetupBtn")?.addEventListener("click", async () => {
 function waitForGoogleDrive() {
   if (window.google?.accounts?.oauth2) {
     const config = getSavedDriveConfig();
-    if (config.clientId && !config.clientId.includes("PASTE_YOUR_")) {
+    if (config.clientId && !config.clientId.includes("1035343182029-e5kbaep69kchplnenphatf83ggqojnsg.apps.googleusercontent.com")) {
       initGoogleDriveClient();
       setDriveStatus(false, "Ready to connect");
     } else {
@@ -1475,7 +1475,7 @@ setTimeout(async () => {
   if (!driveState.connected) {
     setDriveStatus(
       false,
-      config.clientId && !config.clientId.includes("PASTE_YOUR_")
+      config.clientId && !config.clientId.includes("1035343182029-e5kbaep69kchplnenphatf83ggqojnsg.apps.googleusercontent.com")
         ? "Ready to connect"
         : "Client ID required"
     );
