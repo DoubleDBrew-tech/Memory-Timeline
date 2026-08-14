@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
   getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc,
-  serverTimestamp
+  query, orderBy, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 /* =========================================================
@@ -103,16 +103,6 @@ const driveState = {
   connected: false
 };
 
-function openGoogleDriveSetup() {
-  const config = getSavedDriveConfig();
-  if ($("googleDriveClientIdInput")) $("googleDriveClientIdInput").value =
-    config.clientId && !config.clientId.includes("PASTE_YOUR_") ? config.clientId : "";
-  if ($("googleDriveFolderNameInput")) $("googleDriveFolderNameInput").value =
-    config.folderName || DRIVE_FOLDER_NAME;
-  showModal("driveSetupModal");
-}
-window.openGoogleDriveSetup = openGoogleDriveSetup;
-
 function setDriveStatus(connected, text) {
   const el = $("driveStatus");
   if (!el) return;
@@ -126,17 +116,14 @@ function getSavedDriveConfig() {
   try {
     const savedClientId = (localStorage.getItem("memoryVaultGoogleClientId") || "").trim();
     const validSavedClientId =
-      /^[0-9]+-[a-z0-9_-]+\.apps\.googleusercontent\.com$/i.test(savedClientId);
+      /^[0-9]+-[a-z0-9_-]+\\.apps\\.googleusercontent\\.com$/i.test(savedClientId);
 
     return {
       clientId: validSavedClientId ? savedClientId : GOOGLE_DRIVE_CLIENT_ID,
       folderName: localStorage.getItem("memoryVaultGoogleFolderName") || DRIVE_FOLDER_NAME
     };
   } catch {
-    return {
-      clientId: GOOGLE_DRIVE_CLIENT_ID,
-      folderName: DRIVE_FOLDER_NAME
-    };
+    return { clientId: GOOGLE_DRIVE_CLIENT_ID, folderName: DRIVE_FOLDER_NAME };
   }
 }
 
@@ -149,178 +136,133 @@ function driveIsAuthorized() {
   return !!driveState.accessToken && Date.now() < driveState.tokenExpiresAt - 30000;
 }
 
-let driveTokenPromise = null;
-let driveTokenResolve = null;
-let driveTokenReject = null;
-
 function initGoogleDriveClient() {
   const config = getSavedDriveConfig();
-
   if (!config.clientId || config.clientId.includes("PASTE_YOUR_")) {
     setDriveStatus(false, "Client ID required");
     return false;
   }
-
   if (!window.google?.accounts?.oauth2) {
     setDriveStatus(false, "Google authorization is still loading...");
     return false;
   }
 
-  // IMPORTANT:
-  // Keep one permanent GIS callback. Do not replace the callback on every
-  // click. Replacing it was fragile and could leave the Drive button with
-  // no working completion path after the app's realtime-sync changes.
   driveState.client = google.accounts.oauth2.initTokenClient({
     client_id: config.clientId,
     scope: GOOGLE_DRIVE_SCOPE,
     callback: response => {
-      if (response?.error) {
+      if (response.error) {
         driveState.accessToken = "";
-        driveState.tokenExpiresAt = 0;
         driveState.connected = false;
+        console.warn("Google Drive authorization:", response.error);
         setDriveStatus(false, "Not connected");
-
-        if (driveTokenReject) {
-          const reject = driveTokenReject;
-          driveTokenResolve = null;
-          driveTokenReject = null;
-          driveTokenPromise = null;
-          reject(new Error(response.error_description || response.error));
-        }
         return;
       }
-
-      if (!response?.access_token) {
-        driveState.accessToken = "";
-        driveState.tokenExpiresAt = 0;
-        driveState.connected = false;
-        setDriveStatus(false, "Authorization failed");
-
-        if (driveTokenReject) {
-          const reject = driveTokenReject;
-          driveTokenResolve = null;
-          driveTokenReject = null;
-          driveTokenPromise = null;
-          reject(new Error("Google did not return an access token."));
-        }
-        return;
-      }
-
       driveState.accessToken = response.access_token;
-      driveState.tokenExpiresAt =
-        Date.now() + ((response.expires_in || 3600) * 1000);
+      driveState.tokenExpiresAt = Date.now() + ((response.expires_in || 3600) * 1000);
       driveState.connected = true;
-
-      try {
-        localStorage.setItem("memoryVaultDriveAuthorized", "1");
-      } catch {}
-
+      try { localStorage.setItem("memoryVaultDriveAuthorized", "1"); } catch {}
       setDriveStatus(true, "Connected");
-      ensureDriveFolder().catch(error =>
-        console.error("Drive folder setup:", error)
-      );
-
-      if (driveTokenResolve) {
-        const resolve = driveTokenResolve;
-        driveTokenResolve = null;
-        driveTokenReject = null;
-        driveTokenPromise = null;
-        resolve(true);
-      }
-    },
-    error_callback: error => {
-      const message =
-        error?.message ||
-        error?.type ||
-        "Google authorization was cancelled or blocked.";
-
-      driveState.connected = false;
-      setDriveStatus(false, "Not connected");
-
-      if (driveTokenReject) {
-        const reject = driveTokenReject;
-        driveTokenResolve = null;
-        driveTokenReject = null;
-        driveTokenPromise = null;
-        reject(new Error(message));
-      }
+      ensureDriveFolder().catch(error => console.error("Drive folder setup:", error));
     }
   });
-
   return true;
 }
 
-function requestDriveAccessToken(prompt = "") {
-  if (!driveState.client) {
-    if (!initGoogleDriveClient()) {
-      return Promise.reject(new Error("Google authorization is not ready."));
-    }
-  }
-
-  if (driveTokenPromise) return driveTokenPromise;
-
-  // The actual requestAccessToken() call is intentionally made immediately
-  // by the button handler when possible. Google requires a user gesture for
-  // browser token requests.
-  driveTokenPromise = new Promise((resolve, reject) => {
-    driveTokenResolve = resolve;
-    driveTokenReject = reject;
-
-    try {
-      driveState.client.requestAccessToken({ prompt });
-    } catch (error) {
-      driveTokenResolve = null;
-      driveTokenReject = null;
-      driveTokenPromise = null;
-      reject(error);
-    }
-  });
-
-  return driveTokenPromise;
-}
+let driveTokenPromise = null;
 
 async function connectGoogleDrive(forcePrompt = false) {
   const config = getSavedDriveConfig();
-
   if (!config.clientId || config.clientId.includes("PASTE_YOUR_")) {
-    openGoogleDriveSetup();
+    if ($("googleDriveClientIdInput")) $("googleDriveClientIdInput").value = "";
+    if ($("googleDriveFolderNameInput")) $("googleDriveFolderNameInput").value = config.folderName;
+    showModal("driveSetupModal");
     return false;
   }
-
   if (!window.google?.accounts?.oauth2) {
-    throw new Error("Google authorization is still loading. Please try again.");
+    await new Promise(resolve => {
+      const started = Date.now();
+      const timer = setInterval(() => {
+        if (window.google?.accounts?.oauth2 || Date.now() - started > 10000) {
+          clearInterval(timer); resolve();
+        }
+      }, 100);
+    });
   }
-
-  if (!driveState.client && !initGoogleDriveClient()) return false;
-
+  if (!window.google?.accounts?.oauth2) throw new Error("Google authorization is still loading.");
+  if (!driveState.client) initGoogleDriveClient();
+  if (!driveState.client) return false;
   if (driveIsAuthorized()) {
-    driveState.connected = true;
     setDriveStatus(true, "Connected");
     return true;
   }
 
-  try {
-    await requestDriveAccessToken(forcePrompt ? "consent" : "");
-    return driveIsAuthorized();
-  } catch (error) {
-    console.error("Google Drive authorization:", error);
-    setDriveStatus(false, "Not connected");
-    return false;
-  }
+  if (driveTokenPromise) return driveTokenPromise;
+
+  driveTokenPromise = new Promise(resolve => {
+    const client = driveState.client;
+    const previousCallback = client.callback;
+    client.callback = response => {
+      // Restore the permanent callback immediately so future refreshes work.
+      client.callback = previousCallback;
+      if (!response.error) {
+        driveState.accessToken = response.access_token;
+        driveState.tokenExpiresAt = Date.now() + ((response.expires_in || 3600) * 1000);
+        driveState.connected = true;
+        markDriveActivity();
+        try { localStorage.setItem("memoryVaultDriveAuthorized", "1"); } catch {}
+        setDriveStatus(true, "Connected");
+        ensureDriveFolder().catch(console.error);
+        resolve(true);
+      } else {
+        driveState.accessToken = "";
+        driveState.connected = false;
+        setDriveStatus(false, "Not connected");
+        resolve(false);
+      }
+    };
+    try {
+      client.requestAccessToken({ prompt: forcePrompt ? "consent" : "" });
+    } catch (error) {
+      client.callback = previousCallback;
+      resolve(false);
+      throw error;
+    }
+  }).finally(() => { driveTokenPromise = null; });
+
+  return driveTokenPromise;
 }
 
 async function restoreGoogleDriveConnection() {
   const config = getSavedDriveConfig();
   if (!config.clientId || config.clientId.includes("PASTE_YOUR_")) return false;
   if (!window.google?.accounts?.oauth2) return false;
+  if (!driveState.client) initGoogleDriveClient();
+  if (!driveState.client || driveIsAuthorized()) return driveIsAuthorized();
 
-  if (!driveState.client && !initGoogleDriveClient()) return false;
-  if (driveIsAuthorized()) return true;
-
-  // Do not request authorization automatically. Google Identity Services
-  // requires a user gesture for browser token requests. The Drive button
-  // performs the real authorization request.
-  return false;
+  let restored = false;
+  try {
+    restored = await new Promise(resolve => {
+      const client = driveState.client;
+      const previousCallback = client.callback;
+      client.callback = response => {
+        client.callback = previousCallback;
+        if (!response.error && response.access_token) {
+          driveState.accessToken = response.access_token;
+          driveState.tokenExpiresAt = Date.now() + ((response.expires_in || 3600) * 1000);
+          driveState.connected = true;
+          markDriveActivity();
+          try { localStorage.setItem("memoryVaultDriveAuthorized", "1"); } catch {}
+          setDriveStatus(true, "Connected");
+          ensureDriveFolder().catch(console.error);
+          resolve(true);
+        } else resolve(false);
+      };
+      try { client.requestAccessToken({ prompt: "none" }); }
+      catch { client.callback = previousCallback; resolve(false); }
+    });
+  } catch { restored = false; }
+  return restored;
 }
 
 async function driveFetch(url, options = {}, retry = true) {
@@ -409,24 +351,42 @@ function revokeDriveObjectUrl(fileId) {
 
 async function hydrateDriveMedia(root = document) {
   const nodes = root.querySelectorAll?.('[data-drive-media-id]') || [];
+
   for (const node of nodes) {
     const fileId = node.dataset.driveMediaId;
     const kind = node.dataset.driveMediaType;
+    const publicUrl = safeUrl(node.dataset.drivePublicUrl || "");
+
     if (!fileId || node.dataset.hydrated === "1") continue;
     node.dataset.hydrated = "1";
+
     try {
-      const url = await getDriveMediaObjectUrl(fileId);
+      // Public Drive URLs do not require this device to be OAuth-connected.
+      // OAuth is needed for uploading/deleting, not for viewing an existing
+      // file that was made readable by link.
+      let url = publicUrl;
+
+      // Older records may not have a stored URL. Use authenticated Drive
+      // access as a compatibility fallback when available.
+      if (!url) url = await getDriveMediaObjectUrl(fileId);
+      if (!url) throw new Error("No media URL available.");
+
       if (kind === "image") {
-        node.outerHTML = `<img src="${escapeHtml(url)}" class="img-fluid rounded-4 drive-media-image" alt="" loading="lazy">`;
+        node.outerHTML =
+          `<img src="${escapeHtml(url)}" class="img-fluid rounded-4 drive-media-image" alt="" loading="lazy">`;
       } else if (kind === "video") {
-        node.outerHTML = `<video src="${escapeHtml(url)}" class="w-100 rounded-4 drive-media-video" controls playsinline preload="metadata"></video>`;
+        node.outerHTML =
+          `<video src="${escapeHtml(url)}" class="w-100 rounded-4 drive-media-video" controls playsinline preload="metadata"></video>`;
       } else if (kind === "audio") {
-        node.outerHTML = `<audio src="${escapeHtml(url)}" controls class="w-100 drive-audio-player"></audio>`;
+        node.outerHTML =
+          `<audio src="${escapeHtml(url)}" controls autoplay playsinline class="w-100 drive-audio-player"></audio>`;
       }
     } catch (error) {
       console.error("Unable to load Google Drive media", fileId, error);
       node.dataset.hydrated = "0";
-      node.innerHTML = `<div class="alert alert-light border small mb-0"><i class="bi bi-cloud-exclamation me-1"></i>Google Drive media could not be loaded. Connect Google Drive on this device.</div>`;
+      node.innerHTML =
+        `<div class="alert alert-light border small mb-0">` +
+        `<i class="bi bi-cloud-exclamation me-1"></i>Media could not be loaded on this device.</div>`;
     }
   }
 }
@@ -562,57 +522,17 @@ function resetUploadProgress() {
    ========================================================= */
 
 function subscribe(collectionName, target, orderField, render) {
-  /*
-    IMPORTANT:
-    Do not use a Firestore orderBy() query here.
-
-    The previous version could make a collection listener fail or appear
-    empty when existing documents were created by an older version and do
-    not contain the same ordering field. That made the whole app look
-    disconnected even though Firebase itself was initialized correctly.
-
-    We subscribe directly to the collection, then sort the received data
-    locally. This keeps ALL existing documents visible and avoids requiring
-    a Firestore index/query shape to match every historical document.
-  */
-  const unsubscribe = onSnapshot(
-    collection(db, collectionName),
-    snapshot => {
-      state[target] = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-
-      if (orderField) {
-        state[target].sort((a, b) => {
-          const av = a?.[orderField];
-          const bv = b?.[orderField];
-
-          // Firestore Timestamp
-          if (av?.toMillis && bv?.toMillis) return av.toMillis() - bv.toMillis();
-
-          // Dates / datetime strings
-          const ad = Date.parse(String(av ?? ""));
-          const bd = Date.parse(String(bv ?? ""));
-          if (!Number.isNaN(ad) && !Number.isNaN(bd)) return ad - bd;
-
-          // Numeric values
-          if (typeof av === "number" && typeof bv === "number") return av - bv;
-
-          // Normal strings
-          return String(av ?? "").localeCompare(String(bv ?? ""));
-        });
-      }
-
-      render();
-      renderAchievements();
-      renderSearch();
-      setSyncStatus("online", "Synced");
-    },
-    error => {
-      console.error(`${collectionName} realtime error:`, error);
-      setSyncStatus("error", `Sync error: ${error.code || error.message}`);
-    }
-  );
-
-  return unsubscribe;
+  const q = query(collection(db, collectionName), orderBy(orderField, "asc"));
+  onSnapshot(q, snapshot => {
+    state[target] = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    render();
+    renderAchievements();
+    renderSearch();
+    setSyncStatus("online", "Synced");
+  }, error => {
+    console.error(`${collectionName} realtime error:`, error);
+    setSyncStatus("error", "Sync error");
+  });
 }
 
 subscribe("memories", "memories", "date", renderTimeline);
@@ -620,14 +540,6 @@ subscribe("capsules", "capsules", "unlockDate", renderCapsules);
 subscribe("bucketList", "bucketList", "createdAt", renderBucketList);
 subscribe("places", "places", "createdAt", renderPlaces);
 subscribe("countdowns", "countdowns", "targetDate", renderCountdowns);
-
-window.addEventListener("online", () => {
-  setSyncStatus("online", "Reconnecting...");
-});
-
-window.addEventListener("offline", () => {
-  setSyncStatus("error", "Offline");
-});
 
 /* =========================================================
    MEMORY TIMELINE + GALLERY
@@ -646,9 +558,20 @@ function getMemoryPhotoUrls(item) {
 }
 
 function getMemoryMediaIds(item) {
+  const photoIds = getMemoryPhotos(item);
+  const photoUrls = getMemoryPhotoUrls(item);
+
   return [
-    ...getMemoryPhotos(item).map(id => ({ id, type: "image" })),
-    ...(item?.videoPath ? [{ id: item.videoPath, type: "video" }] : [])
+    ...photoIds.map((id, index) => ({
+      id,
+      type: "image",
+      publicUrl: safeUrl(photoUrls[index]) || drivePublicUrl(id)
+    })),
+    ...(item?.videoPath ? [{
+      id: item.videoPath,
+      type: "video",
+      publicUrl: safeUrl(item.video) || drivePublicUrl(item.videoPath)
+    }] : [])
   ];
 }
 
@@ -658,9 +581,22 @@ function mediaMarkup(item, mode = "card") {
   if (!first) {
     return `<div class="d-flex align-items-center justify-content-center rounded-4 bg-light media-thumb"><i class="bi bi-file-earmark fs-1 text-muted"></i></div>`;
   }
-  const placeholder = `<div class="drive-media-placeholder" data-drive-media-id="${escapeHtml(first.id)}" data-drive-media-type="${first.type}"><div class="text-muted small p-4 text-center"><i class="bi ${first.type === "video" ? "bi-camera-video" : "bi-image"} fs-2 d-block mb-1"></i>Loading ${first.type === "video" ? "video" : "photo"}…</div></div>`;
+
+  const placeholder =
+    `<div class="drive-media-placeholder" ` +
+    `data-drive-media-id="${escapeHtml(first.id)}" ` +
+    `data-drive-media-type="${first.type}" ` +
+    `data-drive-public-url="${escapeHtml(first.publicUrl || "")}">` +
+      `<div class="text-muted small p-4 text-center">` +
+        `<i class="bi ${first.type === "video" ? "bi-camera-video" : "bi-image"} fs-2 d-block mb-1"></i>` +
+        `Loading ${first.type === "video" ? "video" : "photo"}…` +
+      `</div>` +
+    `</div>`;
+
   if (mode === "gallery") return placeholder;
-  return placeholder + (media.length > 1 ? `<div class="small text-muted text-center mt-2"><i class="bi bi-images me-1"></i>${media.length} media items — tap to swipe</div>` : "");
+  return placeholder + (media.length > 1
+    ? `<div class="small text-muted text-center mt-2"><i class="bi bi-images me-1"></i>${media.length} media items — tap to swipe</div>`
+    : "");
 }
 
 function renderTimeline() {
@@ -836,7 +772,7 @@ function buildMemoryViewer(item) {
     <div id="memoryMediaCarousel" class="carousel slide memory-media-carousel" data-bs-touch="true">
       <div class="carousel-inner">
         ${media.map((m, i) => `<div class="carousel-item ${i === 0 ? "active" : ""}" data-media-id="${escapeHtml(m.id)}" data-media-type="${m.type}">
-          <div class="memory-slide-content drive-media-placeholder" data-drive-media-id="${escapeHtml(m.id)}" data-drive-media-type="${m.type}">
+          <div class="memory-slide-content drive-media-placeholder" data-drive-media-id="${escapeHtml(m.id)}" data-drive-media-type="${m.type}" data-drive-public-url="${escapeHtml(m.publicUrl || "")}">
             <div class="text-muted p-5 text-center"><i class="bi ${m.type === "video" ? "bi-camera-video" : "bi-image"} fs-1 d-block mb-2"></i>Loading…</div>
           </div>
         </div>`).join("")}
@@ -859,8 +795,8 @@ function buildMemoryViewer(item) {
     viewerVideo = slide.querySelector("video");
     const isVideo = slide.dataset.mediaType === "video";
     if (isVideo) {
-      pauseViewerAudio(false, true);
-      viewerVideo?.addEventListener("play", () => pauseViewerAudio(false, true), { once: true });
+      pauseViewerAudio(true);
+      viewerVideo?.addEventListener("play", () => pauseViewerAudio(true), { once: true });
     } else {
       await resumeViewerAudioIfNeeded();
     }
@@ -873,7 +809,7 @@ function buildMemoryViewer(item) {
 
 function attachViewerVideoHandlers(root) {
   root.querySelectorAll("video").forEach(video => {
-    video.addEventListener("play", () => pauseViewerAudio(false, true));
+    video.addEventListener("play", () => pauseViewerAudio(true));
     video.addEventListener("ended", () => resumeViewerAudioIfNeeded());
   });
 }
@@ -885,69 +821,75 @@ function rememberViewerAudioState() {
   viewerAudioState.wasPlaying = !audio.paused && !audio.ended;
 }
 
-function pauseViewerAudio(sync = true, preserveState = false) {
+function pauseViewerAudio(preserveState = false) {
   const audio = document.querySelector("#memoryModalAudioContainer audio");
   if (!audio) return;
   if (!preserveState) rememberViewerAudioState();
   audio.pause();
-  if (sync) publishPlaybackPause();
 }
 
 async function resumeViewerAudioIfNeeded() {
   const audio = document.querySelector("#memoryModalAudioContainer audio");
-  if (!audio || !viewerAudioState.wasPlaying) return;
+  if (!audio) return;
   try {
     if (Number.isFinite(viewerAudioState.time)) audio.currentTime = viewerAudioState.time;
     await audio.play();
+    viewerAudioState.wasPlaying = true;
   } catch (error) {
-    console.warn("Audio resume requires a user gesture:", error);
+    console.warn("Audio autoplay was blocked by the browser:", error);
   }
 }
 
 async function viewMemory(id) {
   const item = state.memories.find(x => x.id === id);
   if (!item) return;
+
   state.currentMemoryId = id;
   viewerAudioState = { wasPlaying: false, time: 0, memoryId: id };
+
   $("memoryModalTitle").textContent = item.title || "Untitled";
   $("memoryModalDate").textContent = formatDate(item.date);
   $("memoryModalNote").textContent = item.note || "";
-  buildMemoryViewer(item);
-  showModal("viewMemoryModal");
 
   const audioBox = $("memoryModalAudioContainer");
   const audio = $("memoryModalAudio");
-  audioBox.classList.add("d-none");
-  audio.pause(); audio.removeAttribute("src"); audio.load();
-  audioBox.querySelectorAll(".drive-audio-player").forEach(x => x.remove());
 
-  if (item.audioPath) {
-    audio.classList.add("d-none");
-    audioBox.classList.remove("d-none");
-    const placeholder = document.createElement("div");
-    placeholder.dataset.driveMediaId = item.audioPath;
-    placeholder.dataset.driveMediaType = "audio";
-    audioBox.appendChild(placeholder);
-    await hydrateDriveMedia(audioBox);
-  } else if (safeUrl(item.audio)) {
-    audio.src = safeUrl(item.audio);
+  audioBox.classList.add("d-none");
+  audio.pause();
+  audio.currentTime = 0;
+  audio.removeAttribute("src");
+  audio.load();
+
+  // Existing Drive media is publicly readable, so this URL works without
+  // an active OAuth connection on the device.
+  const audioUrl = safeUrl(item.audio) ||
+    (item.audioPath ? drivePublicUrl(item.audioPath) : "");
+
+  if (audioUrl) {
+    audio.src = audioUrl;
+    audio.autoplay = true;
+    audio.controls = true;
     audio.classList.remove("d-none");
     audioBox.classList.remove("d-none");
+    audio.load();
+
+    // Opening a memory is a user interaction. Attempt playback immediately
+    // so the user does not have to press Play separately.
+    try {
+      await audio.play();
+      viewerAudioState.wasPlaying = true;
+    } catch (error) {
+      console.warn("Audio autoplay was blocked by the browser:", error);
+    }
   }
+
+  buildMemoryViewer(item);
+  showModal("viewMemoryModal");
 }
 
 $("memoryModalMedia")?.addEventListener("click", e => {
   if (e.target.closest("button, video, .carousel-control-prev, .carousel-control-next, .carousel-indicators")) return;
   pauseViewerAudio(true);
-});
-
-$("memoryModalAudioContainer")?.addEventListener("click", e => {
-  if (e.target.closest("audio")) {
-    setTimeout(() => {
-      const audio = document.querySelector("#memoryModalAudioContainer audio");
-      if (audio && !audio.paused) publishPlaybackResume();
-    }, 0);
-  }
 });
 
 $("editMemoryBtn").addEventListener("click", () => {
@@ -1395,35 +1337,29 @@ async function deleteRecord(collectionName, item) {
    PREVIEWS + MODAL RESET
    ========================================================= */
 
-$("memImage")?.addEventListener("change", () => {
+$("memImage").addEventListener("change", () => {
   const file = $("memImage").files?.[0];
   const img = $("memoryImagePreview");
-  if (!img) return;
   if (!file) { img.classList.add("d-none"); return; }
-  img.src = URL.createObjectURL(file);
-  img.classList.remove("d-none");
+  img.src = URL.createObjectURL(file); img.classList.remove("d-none");
 });
 
-$("memVideo")?.addEventListener("change", () => {
+$("memVideo").addEventListener("change", () => {
   const file = $("memVideo").files?.[0];
   const video = $("memoryVideoPreview");
-  if (!video) return;
   if (!file) { video.classList.add("d-none"); return; }
-  video.src = URL.createObjectURL(file);
-  video.classList.remove("d-none");
+  video.src = URL.createObjectURL(file); video.classList.remove("d-none");
 });
 
-$("completePhoto")?.addEventListener("change", () => {
+$("completePhoto").addEventListener("change", () => {
   const file = $("completePhoto").files?.[0];
   const img = $("completePhotoPreview");
-  if (!img) return;
   if (!file) { img.classList.add("d-none"); return; }
-  img.src = URL.createObjectURL(file);
-  img.classList.remove("d-none");
+  img.src = URL.createObjectURL(file); img.classList.remove("d-none");
 });
 
 ["memoryModal", "capsuleModal", "bucketModal", "addPlaceModal", "addCountdownModal"].forEach(id => {
-  $(id)?.addEventListener("hidden.bs.modal", () => {
+  $(id).addEventListener("hidden.bs.modal", () => {
     if (id === "memoryModal") {
       $("memoryForm").reset(); $("memoryId").value = ""; $("memoryExistingAudio").value = ""; $("memoryExistingAudioPath").value = ""; resetUploadProgress();
       if ($("memoryImagePreview")) $("memoryImagePreview").classList.add("d-none");
@@ -1439,95 +1375,43 @@ $("completePhoto")?.addEventListener("change", () => {
 setSyncStatus("online", "Connecting...");
 
 /* =========================================================
-   LOCAL PLAYBACK CONTROL
-   =========================================================
-   Playback is intentionally LOCAL to each device.
-   Firestore synchronizes memories/media/data, but NOT play/pause,
-   currentTime, or video state. This prevents Device B from
-   pausing Device A's audio/video.
+   LOCAL MEDIA PLAYBACK
+   ---------------------------------------------------------
+   Play/pause is intentionally local to this device.
+   Firestore still synchronizes memories, letters, goals, places,
+   and countdowns, but media playback is never written to Firestore.
    ========================================================= */
 
-function publishPlaybackPause() {
-  // Playback is deliberately DEVICE-LOCAL.
-  // Do NOT write pause/play/currentTime/video state to Firestore.
-  // Firestore continues to synchronize memories, letters, goals, places,
-  // countdowns, and their media references between all connected devices.
-}
-
-function publishPlaybackResume() {
-  // Same rule: playback remains local to the device.
-}
+let viewerAudioState = { wasPlaying: false, time: 0, memoryId: "" };
+let viewerVideo = null;
 
 /* =========================================================
    GOOGLE DRIVE UI
    ========================================================= */
 
-function handleConnectDriveClick(event) {
-  event?.preventDefault?.();
-
-  const button = $("connectDriveBtn");
-  if (!button || button.dataset.driveBusy === "1") return;
-
+$("connectDriveBtn")?.addEventListener("click", async () => {
   const config = getSavedDriveConfig();
   if (!config.clientId || config.clientId.includes("PASTE_YOUR_")) {
-    openGoogleDriveSetup();
+    $("googleDriveClientIdInput").value = "";
+    $("googleDriveFolderNameInput").value = config.folderName || DRIVE_FOLDER_NAME;
+    showModal("driveSetupModal");
     return;
   }
 
-  // requestAccessToken() must happen from the user's click. Do not put an
-  // await before it while GIS is loading, because that can lose the gesture.
-  if (!window.google?.accounts?.oauth2) {
-    setDriveStatus(false, "Google authorization is still loading...");
-    alert("Google authorization is still loading. Please press Connect Google Drive again in a moment.");
-    return;
+  try {
+    const ok = await connectGoogleDrive(true);
+    if (ok) setDriveStatus(true, "Connected");
+  } catch (error) {
+    console.error(error);
+    alert(`Unable to connect Google Drive.\n\n${error.message}`);
   }
-
-  if (!driveState.client && !initGoogleDriveClient()) {
-    alert("Google authorization could not be initialized.");
-    return;
-  }
-
-  button.dataset.driveBusy = "1";
-  button.disabled = true;
-  setDriveStatus(false, "Connecting...");
-
-  const finish = () => {
-    button.dataset.driveBusy = "0";
-    button.disabled = false;
-  };
-
-  if (driveIsAuthorized()) {
-    setDriveStatus(true, "Connected");
-    finish();
-    return;
-  }
-
-  // This call occurs synchronously from the click path.
-  requestDriveAccessToken("consent")
-    .then(async () => {
-      setDriveStatus(true, "Connected");
-      try {
-        await ensureDriveFolder();
-      } catch (error) {
-        console.error("Drive folder setup:", error);
-      }
-    })
-    .catch(error => {
-      console.error("Google Drive connection failed:", error);
-      setDriveStatus(false, "Not connected");
-      alert(`Unable to connect Google Drive.\\n\\n${error.message}`);
-    })
-    .finally(finish);
-}
-
-$("connectDriveBtn")?.addEventListener("click", handleConnectDriveClick);
+});
 
 $("saveDriveSetupBtn")?.addEventListener("click", async () => {
   const clientId = $("googleDriveClientIdInput").value.trim();
-  const folderName =
-    $("googleDriveFolderNameInput").value.trim() || DRIVE_FOLDER_NAME;
+  const folderName = $("googleDriveFolderNameInput").value.trim() || DRIVE_FOLDER_NAME;
 
-  if (!/^[0-9]+-[a-z0-9_-]+\\.apps\\.googleusercontent\\.com$/i.test(clientId)) {
+  if (!clientId || !clientId.endsWith(".apps.googleusercontent.com")) {
     alert("Enter your Google OAuth Web Client ID.");
     return;
   }
@@ -1535,18 +1419,12 @@ $("saveDriveSetupBtn")?.addEventListener("click", async () => {
   saveDriveConfig(clientId, folderName);
   driveState.client = null;
   driveState.accessToken = "";
-  driveState.tokenExpiresAt = 0;
   driveState.folderId = "";
-  driveState.connected = false;
 
   hideModal("driveSetupModal");
 
   try {
-    if (!initGoogleDriveClient()) {
-      throw new Error("Google authorization is not ready.");
-    }
-
-    // This is a click from the setup modal, so it is also a valid user gesture.
+    initGoogleDriveClient();
     const ok = await connectGoogleDrive(true);
     if (ok) {
       await ensureDriveFolder();
@@ -1554,20 +1432,14 @@ $("saveDriveSetupBtn")?.addEventListener("click", async () => {
     }
   } catch (error) {
     console.error(error);
-    alert(`Google Drive setup failed.\\n\\n${error.message}`);
+    alert(`Google Drive setup failed.\n\n${error.message}`);
   }
 });
 
-/*
- * Google Identity Services is loaded with async/defer.
- * Initialize the token client when the library becomes available, but never
- * automatically request an access token here. Authorization is initiated
- * only by the user's Connect Google Drive button.
- */
+// Wait for Google Identity Services if the script loads after this module.
 function waitForGoogleDrive() {
   if (window.google?.accounts?.oauth2) {
     const config = getSavedDriveConfig();
-
     if (config.clientId && !config.clientId.includes("PASTE_YOUR_")) {
       initGoogleDriveClient();
       setDriveStatus(false, "Ready to connect");
@@ -1576,20 +1448,17 @@ function waitForGoogleDrive() {
     }
     return;
   }
-
-  setTimeout(waitForGoogleDrive, 100);
+  setTimeout(waitForGoogleDrive, 250);
 }
-
 waitForGoogleDrive();
 
-/* Automatically restore only the local UI state; never trigger OAuth without
-   a user gesture. */
+
+/* Do not auto-connect Drive after refresh.
+   Existing photos/videos use their public Drive URLs and remain viewable.
+   OAuth is requested again only when this device needs Drive write access. */
 setTimeout(() => {
-  if (driveIsAuthorized()) {
-    driveState.connected = true;
-    setDriveStatus(true, "Connected");
-  } else {
-    const config = getSavedDriveConfig();
+  const config = getSavedDriveConfig();
+  if (!driveState.connected) {
     setDriveStatus(
       false,
       config.clientId && !config.clientId.includes("PASTE_YOUR_")
@@ -1597,3 +1466,4 @@ setTimeout(() => {
         : "Client ID required"
     );
   }
+}, 1200);
