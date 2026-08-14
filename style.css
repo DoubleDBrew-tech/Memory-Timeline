@@ -13,81 +13,116 @@
 }
 
 html,
-body { min-height: 100%; }
+body {
+  min-height: 100%;
+}
 
 body {
   margin: 0;
-  background: var(--bg-color);
+  background-color: var(--bg-color);
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
+
   color: #2d3436;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
   -webkit-text-size-adjust: 100%;
 }
 
-button, input, textarea, select, a { touch-action: manipulation; }
-button, .btn, .nav-link { cursor: pointer; }
+/* =========================================================
+   TOUCH / CLICK FIX
+   ========================================================= */
+
+button,
+.btn,
+.nav-link,
+.card,
+input[type="checkbox"],
+select {
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+/*
+   Keep the actual content above decorative layers.
+*/
+
+.welcome-section,
+main {
+  position: relative;
+  z-index: 1;
+}
+
+#appTabs {
+  position: relative;
+  z-index: 100;
+}
+
+#appTabs .nav-link,
+.touch-safe-header,
+.touch-safe-header button {
+  position: relative;
+  z-index: 101;
+  pointer-events: auto;
+}
+
+.touch-safe-header {
+  position: relative;
+  z-index: 90;
+}
+
+.touch-btn {
+  position: relative;
+  z-index: 100;
+}
+
+/* =========================================================
+   HEADER
+   ========================================================= */
 
 .welcome-section {
-  background: linear-gradient(135deg, var(--primary) 0%, var(--accent-pink) 100%);
-  border-radius: 0 0 2rem 2rem;
+  background:
+    linear-gradient(
+      135deg,
+      var(--primary) 0%,
+      var(--accent-pink) 100%
+    );
+
+  border-radius:
+    0 0 2rem 2rem;
 }
 
 .heart-pulse {
-  font-size: 2.6rem;
+  font-size: 3rem;
   display: inline-block;
-  animation: pulse 1.8s infinite ease-in-out;
+  animation:
+    pulse 1.8s infinite ease-in-out;
 }
 
 @keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.12); }
+
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.15);
+  }
+
 }
 
-.max-width-600 { max-width: 600px; }
-
-.app-tabs {
-  position: sticky;
-  top: 8px;
-  z-index: 100;
-  overflow-x: auto;
+.max-width-600 {
+  max-width: 600px;
 }
 
-.app-tabs .nav-link {
-  white-space: nowrap;
-  min-width: max-content;
-}
-
-.sync-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: rgba(255,255,255,.18);
-  backdrop-filter: blur(8px);
-  font-size: .82rem;
-  font-weight: 600;
-}
-
-.sync-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #f1c40f;
-  display: inline-block;
-}
-
-.sync-dot.online { background: #2ecc71; box-shadow: 0 0 0 4px rgba(46,204,113,.18); }
-.sync-dot.error { background: #e74c3c; box-shadow: 0 0 0 4px rgba(231,76,60,.18); }
-
-.section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 1rem;
-}
-
-.section-head h3 { margin: 0; font-weight: 700; }
+/* =========================================================
+   TIMELINE
+   ========================================================= */
 
 .timeline {
   position: relative;
@@ -95,142 +130,378 @@ button, .btn, .nav-link { cursor: pointer; }
   min-height: 120px;
 }
 
+/*
+   IMPORTANT:
+   This is only a visual line.
+   It must NEVER receive touches/clicks.
+*/
+
 .timeline::before {
   content: "";
+
   position: absolute;
+
   top: 0;
   bottom: 0;
+
   left: 50%;
+
   width: 3px;
-  background: var(--primary-light);
-  transform: translateX(-50%);
+
+  background:
+    var(--primary-light);
+
+  transform:
+    translateX(-50%);
+
+  z-index: 0;
+
   pointer-events: none;
 }
 
 .timeline-item {
   position: relative;
+
   margin-bottom: 2rem;
+
   width: 50%;
+
   z-index: 2;
 }
 
-.timeline-item.left { left: 0; padding-right: 2rem; }
-.timeline-item.right { left: 50%; padding-left: 2rem; }
+.timeline-item.left {
+  left: 0;
+
+  padding-right: 2rem;
+}
+
+.timeline-item.right {
+  left: 50%;
+
+  padding-left: 2rem;
+}
 
 .timeline-node {
   position: absolute;
+
   top: 15px;
+
   width: 16px;
   height: 16px;
+
   border-radius: 50%;
-  background: var(--primary);
-  border: 3px solid #fff;
-  box-shadow: 0 0 0 2px var(--primary-light);
+
+  background:
+    var(--primary);
+
+  border:
+    3px solid #fff;
+
+  box-shadow:
+    0 0 0 2px var(--primary-light);
+
   z-index: 3;
+
+  pointer-events: none;
 }
 
-.timeline-item.left .timeline-node { right: -8px; }
-.timeline-item.right .timeline-node { left: -8px; }
+.timeline-item.left .timeline-node {
+  right: -8px;
+}
+
+.timeline-item.right .timeline-node {
+  left: -8px;
+}
+
+/* Timeline card is an actual clickable button */
 
 .card-memory {
-  position: relative;
-  z-index: 4;
-  border: 0;
-  background: #fff;
-  transition: transform .2s ease, box-shadow .2s ease;
-}
-
-.card-memory:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 20px rgba(0,0,0,.08) !important;
-}
-
-.capsule-card.locked { background: #f1f2f6; border: 2px dashed #b2bec3; }
-.capsule-card.unlocked { background: #fff; border: 2px solid #2ed573; }
-
-.modal { z-index: 2000; }
-.modal-backdrop { z-index: 1990; }
-.modal-dialog, .modal-content { position: relative; z-index: 2001; }
-
-.media-card {
-  overflow: hidden;
-  border-radius: 1rem;
-  background: #fff;
-  box-shadow: 0 4px 16px rgba(0,0,0,.07);
-}
-
-.media-card img,
-.media-card video {
-  width: 100%;
-  height: 220px;
-  object-fit: cover;
   display: block;
+
+  border: 0;
+
+  position: relative;
+
+  z-index: 4;
+
+  pointer-events: auto;
+
+  background: #fff;
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
-.media-card-body { padding: .9rem; }
+.card-memory:active,
+.card-memory:hover {
+  transform:
+    translateY(-3px);
 
-.action-row {
+  box-shadow:
+    0 8px 20px
+    rgba(0, 0, 0, 0.08) !important;
+}
+
+/* =========================================================
+   CAPSULES
+   ========================================================= */
+
+.capsule-card.locked {
+  background: #f1f2f6;
+
+  border:
+    2px dashed #b2bec3;
+}
+
+.capsule-card.unlocked {
+  background: #fff;
+
+  border:
+    2px solid #2ed573;
+}
+
+/* =========================================================
+   MODAL CLICK / Z-INDEX FIX
+   ========================================================= */
+
+.modal {
+  z-index: 2000;
+}
+
+.modal-backdrop {
+  z-index: 1990;
+}
+
+.modal-dialog,
+.modal-content {
+  position: relative;
+
+  z-index: 2001;
+}
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 768px) {
+
+  .timeline::before {
+    left: 18px;
+  }
+
+  .timeline-item {
+    width: 100%;
+
+    left: 0 !important;
+
+    padding-left:
+      2.5rem !important;
+
+    padding-right:
+      0 !important;
+  }
+
+  .timeline-item.left .timeline-node,
+  .timeline-item.right .timeline-node {
+    left: 10px;
+  }
+
+  .touch-safe-header {
+    gap: 1rem;
+  }
+
+  .touch-safe-header button {
+    flex-shrink: 0;
+  }
+
+}
+
+/* =========================================================
+   REALTIME SYNC STATUS
+   ========================================================= */
+
+.sync-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+
+  padding: 6px 12px;
+
+  border-radius: 999px;
+
+  background: rgba(255, 255, 255, 0.18);
+
+  backdrop-filter: blur(8px);
+
+  font-size: 0.82rem;
+
+  font-weight: 600;
+}
+
+.sync-dot {
+  width: 8px;
+  height: 8px;
+
+  border-radius: 50%;
+
+  background: #f1c40f;
+
+  display: inline-block;
+}
+
+.sync-dot.online {
+  background: #2ecc71;
+
+  box-shadow:
+    0 0 0 4px
+    rgba(46, 204, 113, 0.18);
+}
+
+.sync-dot.error {
+  background: #e74c3c;
+
+  box-shadow:
+    0 0 0 4px
+    rgba(231, 76, 60, 0.18);
+}
+
+
+/* =========================================================
+   FILE UPLOAD
+   ========================================================= */
+
+input[type="file"] {
+  cursor: pointer;
+}
+
+input[type="file"]::file-selector-button {
+  border: 0;
+
+  background: var(--primary);
+
+  color: white;
+
+  border-radius: 999px;
+
+  padding: 7px 12px;
+
+  margin-right: 10px;
+
+  cursor: pointer;
+}
+
+
+/* =========================================================
+   UPLOAD PREVIEW
+   ========================================================= */
+
+#memoryImagePreview,
+#completePhotoPreview {
+  display: block;
+
+  width: 100%;
+
+  border: 2px solid rgba(108, 92, 231, 0.12);
+
+  background: #f8f9fa;
+}
+
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 576px) {
+
+  .sync-status {
+    font-size: 0.75rem;
+  }
+
+  input[type="file"] {
+    font-size: 0.85rem;
+  }
+
+}
+
+/* =========================================================
+   ADDED FEATURES — ORIGINAL CSS ABOVE IS PRESERVED
+   ========================================================= */
+
+.feature-search {
+  position: relative;
+  z-index: 80;
+}
+
+#appTabs {
+  overflow-x: auto;
+  justify-content: flex-start;
+  gap: .25rem;
+}
+
+#appTabs .nav-item {
+  flex: 0 0 auto;
+}
+
+.feature-action-row {
   display: flex;
   flex-wrap: wrap;
   gap: .4rem;
   margin-top: .75rem;
 }
 
-.countdown-number {
+.feature-media-card {
+  overflow: hidden;
+  border-radius: 1rem;
+  background: #fff;
+  box-shadow: 0 4px 16px rgba(0,0,0,.07);
+}
+
+.feature-media-card img,
+.feature-media-card video {
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+  display: block;
+}
+
+.feature-media-card .card-body {
+  padding: .9rem;
+}
+
+.feature-countdown {
   font-size: clamp(1.7rem, 6vw, 3rem);
   font-weight: 800;
   color: var(--primary);
 }
 
-.progress { height: 9px; border-radius: 999px; }
+.feature-achievement-icon {
+  font-size: 2.2rem;
+}
 
-.achievement-card.locked {
+.feature-achievement.locked {
   opacity: .55;
   filter: grayscale(.4);
 }
 
-.achievement-icon {
-  font-size: 2.2rem;
-}
-
-.search-result {
+.feature-search-result {
   border-top: 1px solid #eee;
   padding: .75rem 0;
 }
 
-input[type="file"] { cursor: pointer; }
-
-input[type="file"]::file-selector-button {
-  border: 0;
-  background: var(--primary);
-  color: #fff;
+.feature-progress {
+  height: 9px;
   border-radius: 999px;
-  padding: 7px 12px;
-  margin-right: 10px;
-  cursor: pointer;
-}
-
-@media (max-width: 900px) {
-  .app-tabs { justify-content: flex-start; }
 }
 
 @media (max-width: 768px) {
-  .timeline::before { left: 18px; }
-  .timeline-item {
-    width: 100%;
-    left: 0 !important;
-    padding-left: 2.5rem !important;
-    padding-right: 0 !important;
+  #appTabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
   }
-  .timeline-item.left .timeline-node,
-  .timeline-item.right .timeline-node { left: 10px; right: auto; }
-  .section-head { align-items: flex-start; }
-  .section-head .btn { flex-shrink: 0; }
-}
 
-@media (max-width: 576px) {
-  .container { padding-left: 12px; padding-right: 12px; }
-  .sync-status { font-size: .75rem; }
-  .section-head h3 { font-size: 1.2rem; }
-  .media-card img, .media-card video { height: 180px; }
+  .feature-media-card img,
+  .feature-media-card video {
+    height: 190px;
+  }
 }
