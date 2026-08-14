@@ -1,849 +1,232 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8">
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-  >
-
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#6c5ce7">
   <title>Our Memory Vault & Future Capsule</title>
 
-  <link
-    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
-    rel="stylesheet"
-  >
-
-  <link
-    rel="stylesheet"
-    href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css"
-  >
-
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
-
-  <!-- =====================================================
-       WELCOME
-       ===================================================== -->
-
-  <section class="welcome-section text-white text-center py-5 shadow-sm mb-4">
-
-    <div class="container position-relative py-3">
-
+  <section class="welcome-section text-white text-center py-4 shadow-sm mb-4">
+    <div class="container position-relative py-2">
       <div class="heart-pulse mb-2">💖</div>
-
-      <h1 class="display-5 fw-bold mb-2">
-        Welcome, Leigh!
-      </h1>
-
-      <p class="lead max-width-600 mx-auto opacity-90">
-        A dedicated vault for our favorite memories,
-        locked letters, and future bucket list.
+      <h1 class="display-6 fw-bold mb-2">Welcome, Leigh!</h1>
+      <p class="lead max-width-600 mx-auto opacity-90 mb-2">
+        A shared vault for memories, letters, capsules, goals, places and countdowns.
       </p>
-
       <div class="sync-status mt-3">
         <span id="syncIndicator" class="sync-dot"></span>
         <span id="syncStatusText">Connecting...</span>
       </div>
-
     </div>
-
   </section>
 
-
-  <!-- =====================================================
-       MAIN
-       ===================================================== -->
-
   <main class="container pb-5">
+    <div class="search-panel card border-0 shadow-sm rounded-4 p-3 mb-4">
+      <div class="input-group">
+        <span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span>
+        <input id="globalSearch" type="search" class="form-control border-start-0" placeholder="Search memories, letters, capsules, goals, places and countdowns...">
+        <button id="clearSearch" class="btn btn-outline-secondary">Clear</button>
+      </div>
+      <div id="searchResults" class="mt-3 d-none"></div>
+    </div>
 
-    <ul
-      class="nav nav-pills nav-justified mb-4 shadow-sm bg-white p-2 rounded-4"
-      id="appTabs"
-      role="tablist"
-    >
-
-      <li class="nav-item" role="presentation">
-
-        <button
-          class="nav-link active fw-semibold"
-          id="timeline-tab"
-          data-bs-toggle="tab"
-          data-bs-target="#timeline-pane"
-          type="button"
-          role="tab"
-        >
-
-          <i class="bi bi-clock-history me-1"></i>
-          Timeline
-
-        </button>
-
-      </li>
-
-
-      <li class="nav-item" role="presentation">
-
-        <button
-          class="nav-link fw-semibold"
-          id="capsule-tab"
-          data-bs-toggle="tab"
-          data-bs-target="#capsule-pane"
-          type="button"
-          role="tab"
-        >
-
-          <i class="bi bi-envelope-paper-heart me-1"></i>
-          Capsules
-
-        </button>
-
-      </li>
-
-
-      <li class="nav-item" role="presentation">
-
-        <button
-          class="nav-link fw-semibold"
-          id="bucket-tab"
-          data-bs-toggle="tab"
-          data-bs-target="#bucket-pane"
-          type="button"
-          role="tab"
-        >
-
-          <i class="bi bi-check2-square me-1"></i>
-          Bucket List
-
-        </button>
-
-      </li>
-
+    <ul class="nav nav-pills nav-justified mb-4 shadow-sm bg-white p-2 rounded-4 app-tabs" id="appTabs" role="tablist">
+      <li class="nav-item"><button class="nav-link active fw-semibold" data-bs-toggle="tab" data-bs-target="#timeline-pane" type="button"><i class="bi bi-clock-history me-1"></i>Timeline</button></li>
+      <li class="nav-item"><button class="nav-link fw-semibold" data-bs-toggle="tab" data-bs-target="#letters-pane" type="button"><i class="bi bi-envelope-heart me-1"></i>Letters</button></li>
+      <li class="nav-item"><button class="nav-link fw-semibold" data-bs-toggle="tab" data-bs-target="#capsule-pane" type="button"><i class="bi bi-hourglass-split me-1"></i>Capsules</button></li>
+      <li class="nav-item"><button class="nav-link fw-semibold" data-bs-toggle="tab" data-bs-target="#bucket-pane" type="button"><i class="bi bi-check2-square me-1"></i>Bucket</button></li>
+      <li class="nav-item"><button class="nav-link fw-semibold" data-bs-toggle="tab" data-bs-target="#places-pane" type="button"><i class="bi bi-geo-alt me-1"></i>Places</button></li>
+      <li class="nav-item"><button class="nav-link fw-semibold" data-bs-toggle="tab" data-bs-target="#countdowns-pane" type="button"><i class="bi bi-stopwatch me-1"></i>Countdowns</button></li>
+      <li class="nav-item"><button class="nav-link fw-semibold" data-bs-toggle="tab" data-bs-target="#gallery-pane" type="button"><i class="bi bi-images me-1"></i>Gallery</button></li>
+      <li class="nav-item"><button class="nav-link fw-semibold" data-bs-toggle="tab" data-bs-target="#achievements-pane" type="button"><i class="bi bi-trophy me-1"></i>Achievements</button></li>
     </ul>
 
-
-    <div class="tab-content" id="appTabsContent">
-
-
-      <!-- =================================================
-           TIMELINE
-           ================================================= -->
-
-      <div
-        class="tab-pane fade show active"
-        id="timeline-pane"
-        role="tabpanel"
-      >
-
-        <div class="d-flex justify-content-between align-items-center mb-4 touch-safe-header">
-
-          <h3 class="fw-bold m-0">
-
-            <i class="bi bi-journal-album text-primary me-2"></i>
-            Timeline
-
-          </h3>
-
-
-          <button
-            type="button"
-            class="btn btn-primary rounded-pill px-4 shadow-sm"
-            data-bs-toggle="modal"
-            data-bs-target="#addMemoryModal"
-          >
-
-            <i class="bi bi-plus-lg me-1"></i>
-            Add Memory
-
-          </button>
-
+    <div class="tab-content">
+      <section class="tab-pane fade show active" id="timeline-pane">
+        <div class="section-head">
+          <h3><i class="bi bi-journal-album text-primary me-2"></i>Memories</h3>
+          <button class="btn btn-primary rounded-pill" data-bs-toggle="modal" data-bs-target="#memoryModal"><i class="bi bi-plus-lg me-1"></i>Add Memory</button>
         </div>
+        <div id="timelineContainer" class="timeline"></div>
+      </section>
 
-
-        <div
-          class="timeline"
-          id="timelineContainer"
-        ></div>
-
-      </div>
-
-
-      <!-- =================================================
-           CAPSULES
-           ================================================= -->
-
-      <div
-        class="tab-pane fade"
-        id="capsule-pane"
-        role="tabpanel"
-      >
-
-        <div class="d-flex justify-content-between align-items-center mb-4 touch-safe-header">
-
-          <h3 class="fw-bold m-0">
-
-            <i class="bi bi-hourglass-split text-danger me-2"></i>
-            Capsules
-
-          </h3>
-
-
-          <button
-            type="button"
-            class="btn btn-outline-danger rounded-pill px-4 shadow-sm"
-            data-bs-toggle="modal"
-            data-bs-target="#addCapsuleModal"
-          >
-
-            <i class="bi bi-plus-lg me-1"></i>
-            New Capsule
-
-          </button>
-
+      <section class="tab-pane fade" id="letters-pane">
+        <div class="section-head">
+          <h3><i class="bi bi-envelope-heart text-danger me-2"></i>Letters</h3>
+          <button class="btn btn-danger rounded-pill" data-bs-toggle="modal" data-bs-target="#letterModal"><i class="bi bi-plus-lg me-1"></i>New Letter</button>
         </div>
+        <div id="lettersContainer" class="row g-3"></div>
+      </section>
 
-
-        <div
-          class="row g-4"
-          id="capsuleContainer"
-        ></div>
-
-      </div>
-
-
-      <!-- =================================================
-           BUCKET LIST
-           ================================================= -->
-
-      <div
-        class="tab-pane fade"
-        id="bucket-pane"
-        role="tabpanel"
-      >
-
-        <div class="d-flex justify-content-between align-items-center mb-4 touch-safe-header">
-
-          <h3 class="fw-bold m-0">
-
-            <i class="bi bi-compass text-success me-2"></i>
-            Bucket List
-
-          </h3>
-
-
-          <button
-            type="button"
-            class="btn btn-success rounded-pill px-4 shadow-sm"
-            data-bs-toggle="modal"
-            data-bs-target="#addBucketModal"
-          >
-
-            <i class="bi bi-plus-lg me-1"></i>
-            Add Goal
-
-          </button>
-
+      <section class="tab-pane fade" id="capsule-pane">
+        <div class="section-head">
+          <h3><i class="bi bi-hourglass-split text-danger me-2"></i>Capsules</h3>
+          <button class="btn btn-outline-danger rounded-pill" data-bs-toggle="modal" data-bs-target="#capsuleModal"><i class="bi bi-plus-lg me-1"></i>New Capsule</button>
         </div>
+        <div id="capsuleContainer" class="row g-3"></div>
+      </section>
 
+      <section class="tab-pane fade" id="bucket-pane">
+        <div class="section-head">
+          <h3><i class="bi bi-compass text-success me-2"></i>Bucket List</h3>
+          <button class="btn btn-success rounded-pill" data-bs-toggle="modal" data-bs-target="#bucketModal"><i class="bi bi-plus-lg me-1"></i>Add Goal</button>
+        </div>
+        <div id="bucketProgress" class="mb-3"></div>
+        <div id="bucketListContainer" class="row g-3"></div>
+      </section>
 
-        <div
-          class="row g-3"
-          id="bucketListContainer"
-        ></div>
+      <section class="tab-pane fade" id="places-pane">
+        <div class="section-head">
+          <h3><i class="bi bi-geo-alt text-primary me-2"></i>Places</h3>
+          <button class="btn btn-primary rounded-pill" data-bs-toggle="modal" data-bs-target="#placeModal"><i class="bi bi-plus-lg me-1"></i>Add Place</button>
+        </div>
+        <div id="placesContainer" class="row g-3"></div>
+      </section>
 
-      </div>
+      <section class="tab-pane fade" id="countdowns-pane">
+        <div class="section-head">
+          <h3><i class="bi bi-stopwatch text-warning me-2"></i>Countdowns</h3>
+          <button class="btn btn-warning rounded-pill" data-bs-toggle="modal" data-bs-target="#countdownModal"><i class="bi bi-plus-lg me-1"></i>Add Countdown</button>
+        </div>
+        <div id="countdownsContainer" class="row g-3"></div>
+      </section>
 
+      <section class="tab-pane fade" id="gallery-pane">
+        <div class="section-head">
+          <h3><i class="bi bi-images text-primary me-2"></i>Photo / Video Gallery</h3>
+          <span class="text-muted small">Media from memories and bucket celebrations</span>
+        </div>
+        <div id="galleryContainer" class="row g-3"></div>
+      </section>
+
+      <section class="tab-pane fade" id="achievements-pane">
+        <div class="section-head">
+          <h3><i class="bi bi-trophy text-warning me-2"></i>Achievements</h3>
+          <span id="achievementScore" class="badge bg-warning text-dark rounded-pill"></span>
+        </div>
+        <div id="achievementsContainer" class="row g-3"></div>
+      </section>
     </div>
-
   </main>
 
-
-  <!-- =====================================================
-       ADD MEMORY MODAL
-       ===================================================== -->
-
-  <div
-    class="modal fade"
-    id="addMemoryModal"
-    tabindex="-1"
-    aria-hidden="true"
-  >
-
-    <div class="modal-dialog modal-dialog-centered">
-
-      <div class="modal-content rounded-4 border-0 shadow">
-
-        <div class="modal-header border-0 pb-0">
-
-          <h5 class="modal-title fw-bold">
-            Add New Memory
-          </h5>
-
-          <button
-            type="button"
-            class="btn-close"
-            data-bs-dismiss="modal"
-          ></button>
-
-        </div>
-
-
-        <form id="memoryForm">
-
-          <div class="modal-body">
-
-            <div class="mb-3">
-
-              <label class="form-label fw-semibold">
-                Title
-              </label>
-
-              <input
-                type="text"
-                id="memTitle"
-                class="form-control"
-                placeholder="e.g., Weekend Getaway"
-                required
-              >
-
-            </div>
-
-
-            <div class="mb-3">
-
-              <label class="form-label fw-semibold">
-                Date
-              </label>
-
-              <input
-                type="date"
-                id="memDate"
-                class="form-control"
-                required
-              >
-
-            </div>
-
-
-            <!-- PHOTO UPLOAD -->
-
-            <div class="mb-3">
-
-              <label class="form-label fw-semibold">
-                <i class="bi bi-image me-1"></i>
-                Photo
-              </label>
-
-              <input
-                type="file"
-                id="memImage"
-                class="form-control"
-                accept="image/*"
-              >
-
-              <div
-                id="memoryImagePreviewContainer"
-                class="mt-3 d-none"
-              >
-
-                <img
-                  id="memoryImagePreview"
-                  class="img-fluid rounded-4 w-100"
-                  style="max-height:220px;object-fit:cover;"
-                  alt="Selected photo"
-                >
-
-                <button
-                  type="button"
-                  id="removeMemoryImage"
-                  class="btn btn-sm btn-outline-danger rounded-pill mt-2"
-                >
-
-                  <i class="bi bi-x-lg me-1"></i>
-                  Remove Photo
-
-                </button>
-
-              </div>
-
-            </div>
-
-
-            <div class="mb-3">
-
-              <label class="form-label fw-semibold">
-                Audio URL
-                <span class="text-muted fw-normal">
-                  (Optional MP3 Link)
-                </span>
-              </label>
-
-              <input
-                type="url"
-                id="memAudio"
-                class="form-control"
-                placeholder="https://..."
-              >
-
-            </div>
-
-
-            <div class="mb-3">
-
-              <label class="form-label fw-semibold">
-                Memory Note
-              </label>
-
-              <textarea
-                id="memNote"
-                class="form-control"
-                rows="3"
-                required
-              ></textarea>
-
-            </div>
-
-          </div>
-
-
-          <div class="modal-footer border-0">
-
-            <button
-              type="submit"
-              id="saveMemoryBtn"
-              class="btn btn-primary w-100 rounded-pill"
-            >
-
-              <i class="bi bi-cloud-arrow-up me-1"></i>
-              Save Memory
-
-            </button>
-
-          </div>
-
-        </form>
-
-      </div>
-
-    </div>
-
-  </div>
-
-
-  <!-- =====================================================
-       VIEW MEMORY MODAL
-       ===================================================== -->
-
-  <div
-    class="modal fade"
-    id="viewMemoryModal"
-    tabindex="-1"
-    aria-hidden="true"
-  >
-
-    <div class="modal-dialog modal-dialog-centered">
-
-      <div class="modal-content rounded-4 border-0 shadow">
-
-        <div class="modal-header border-0 pb-0">
-
-          <h5
-            class="modal-title fw-bold"
-            id="memoryModalTitle"
-          >
-            Memory Title
-          </h5>
-
-          <button
-            type="button"
-            class="btn-close"
-            data-bs-dismiss="modal"
-          ></button>
-
-        </div>
-
-
+  <!-- MEMORY MODAL -->
+  <div class="modal fade" id="memoryModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content rounded-4 border-0 shadow">
+      <form id="memoryForm">
+        <div class="modal-header"><h5 id="memoryModalHeading" class="modal-title fw-bold">Add Memory</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
         <div class="modal-body">
-
-          <small
-            class="text-primary fw-bold d-block mb-2"
-            id="memoryModalDate"
-          ></small>
-
-
-          <img
-            id="memoryModalImage"
-            src=""
-            class="img-fluid rounded-3 mb-3 d-none w-100"
-            style="max-height:280px;object-fit:cover;"
-            alt="Memory photo"
-          >
-
-
-          <p
-            id="memoryModalNote"
-            class="text-secondary mb-3"
-          ></p>
-
-
-          <div
-            id="memoryModalAudioContainer"
-            class="d-none"
-          >
-
-            <label class="form-label fw-bold small text-muted">
-
-              <i class="bi bi-music-note-beamed"></i>
-              Audio
-
-            </label>
-
-            <audio
-              id="memoryModalAudio"
-              controls
-              class="w-100"
-            ></audio>
-
+          <input type="hidden" id="memoryId">
+          <div class="row g-3">
+            <div class="col-md-8"><label class="form-label fw-semibold">Title</label><input id="memTitle" class="form-control" required></div>
+            <div class="col-md-4"><label class="form-label fw-semibold">Date</label><input id="memDate" type="date" class="form-control" required></div>
+            <div class="col-12"><label class="form-label fw-semibold">Photo</label><input id="memImage" type="file" class="form-control" accept="image/*"></div>
+            <div class="col-12"><label class="form-label fw-semibold">Video</label><input id="memVideo" type="file" class="form-control" accept="video/*"></div>
+            <div class="col-12"><div id="memoryUploadProgress" class="progress d-none"><div id="memoryUploadBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width:0%">0%</div></div></div>
+            <div class="col-md-6"><label class="form-label fw-semibold">Audio URL</label><input id="memAudio" type="url" class="form-control" placeholder="https://..."></div>
+            <div class="col-md-6"><label class="form-label fw-semibold">Media caption</label><input id="memCaption" class="form-control"></div>
+            <div class="col-12"><label class="form-label fw-semibold">Memory Note</label><textarea id="memNote" class="form-control" rows="4" required></textarea></div>
           </div>
-
         </div>
-
-      </div>
-
-    </div>
-
+        <div class="modal-footer"><button class="btn btn-primary w-100 rounded-pill" id="saveMemoryBtn">Save Memory</button></div>
+      </form>
+    </div></div>
   </div>
 
-
-  <!-- =====================================================
-       ADD CAPSULE
-       ===================================================== -->
-
-  <div
-    class="modal fade"
-    id="addCapsuleModal"
-    tabindex="-1"
-    aria-hidden="true"
-  >
-
-    <div class="modal-dialog modal-dialog-centered">
-
-      <div class="modal-content rounded-4 border-0 shadow">
-
-        <div class="modal-header border-0 pb-0">
-
-          <h5 class="modal-title fw-bold">
-            Create Time Capsule
-          </h5>
-
-          <button
-            type="button"
-            class="btn-close"
-            data-bs-dismiss="modal"
-          ></button>
-
+  <!-- LETTER MODAL -->
+  <div class="modal fade" id="letterModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content rounded-4 border-0 shadow">
+      <form id="letterForm">
+        <div class="modal-header"><h5 class="modal-title fw-bold">Letter</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <input type="hidden" id="letterId">
+          <label class="form-label fw-semibold">Title</label><input id="letterTitle" class="form-control mb-3" required>
+          <label class="form-label fw-semibold">Letter</label><textarea id="letterContent" class="form-control" rows="8" required></textarea>
         </div>
-
-
-        <form id="capsuleForm">
-
-          <div class="modal-body">
-
-            <div class="mb-3">
-
-              <label class="form-label fw-semibold">
-                "Open When..." Label
-              </label>
-
-              <input
-                type="text"
-                id="capTitle"
-                class="form-control"
-                placeholder="e.g., Open when you miss me"
-                required
-              >
-
-            </div>
-
-
-            <div class="mb-3">
-
-              <label class="form-label fw-semibold">
-                Unlock Date
-              </label>
-
-              <input
-                type="date"
-                id="capUnlockDate"
-                class="form-control"
-                required
-              >
-
-            </div>
-
-
-            <div class="mb-3">
-
-              <label class="form-label fw-semibold">
-                Letter / Note
-              </label>
-
-              <textarea
-                id="capContent"
-                class="form-control"
-                rows="4"
-                placeholder="Write your letter..."
-                required
-              ></textarea>
-
-            </div>
-
-          </div>
-
-
-          <div class="modal-footer border-0">
-
-            <button
-              type="submit"
-              class="btn btn-danger w-100 rounded-pill"
-            >
-
-              <i class="bi bi-lock-fill me-1"></i>
-              Lock Capsule
-
-            </button>
-
-          </div>
-
-        </form>
-
-      </div>
-
-    </div>
-
+        <div class="modal-footer"><button class="btn btn-danger w-100 rounded-pill">Save Letter</button></div>
+      </form>
+    </div></div>
   </div>
 
-
-  <!-- =====================================================
-       ADD BUCKET GOAL
-       ===================================================== -->
-
-  <div
-    class="modal fade"
-    id="addBucketModal"
-    tabindex="-1"
-    aria-hidden="true"
-  >
-
-    <div class="modal-dialog modal-dialog-centered">
-
-      <div class="modal-content rounded-4 border-0 shadow">
-
-        <div class="modal-header border-0 pb-0">
-
-          <h5 class="modal-title fw-bold">
-            Add Bucket Goal
-          </h5>
-
-          <button
-            type="button"
-            class="btn-close"
-            data-bs-dismiss="modal"
-          ></button>
-
+  <!-- CAPSULE MODAL -->
+  <div class="modal fade" id="capsuleModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content rounded-4 border-0 shadow">
+      <form id="capsuleForm">
+        <div class="modal-header"><h5 class="modal-title fw-bold">Time Capsule</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <input type="hidden" id="capsuleId">
+          <label class="form-label fw-semibold">Open When...</label><input id="capTitle" class="form-control mb-3" required>
+          <label class="form-label fw-semibold">Unlock Date</label><input id="capUnlockDate" type="date" class="form-control mb-3" required>
+          <label class="form-label fw-semibold">Letter / Note</label><textarea id="capContent" class="form-control" rows="6" required></textarea>
         </div>
-
-
-        <form id="bucketForm">
-
-          <div class="modal-body">
-
-            <div class="mb-3">
-
-              <label class="form-label fw-semibold">
-                Goal Title
-              </label>
-
-              <input
-                type="text"
-                id="bucketTitle"
-                class="form-control"
-                placeholder="e.g., Visit Japan together"
-                required
-              >
-
-            </div>
-
-
-            <div class="mb-3">
-
-              <label class="form-label fw-semibold">
-                Category
-              </label>
-
-              <select
-                id="bucketCategory"
-                class="form-select"
-              >
-
-                <option value="Travel">
-                  Travel
-                </option>
-
-                <option value="Adventure">
-                  Adventure
-                </option>
-
-                <option value="Personal">
-                  Personal
-                </option>
-
-                <option value="Milestone">
-                  Milestone
-                </option>
-
-              </select>
-
-            </div>
-
-          </div>
-
-
-          <div class="modal-footer border-0">
-
-            <button
-              type="submit"
-              class="btn btn-success w-100 rounded-pill"
-            >
-
-              <i class="bi bi-plus-lg me-1"></i>
-              Add Goal
-
-            </button>
-
-          </div>
-
-        </form>
-
-      </div>
-
-    </div>
-
+        <div class="modal-footer"><button class="btn btn-danger w-100 rounded-pill">Save Capsule</button></div>
+      </form>
+    </div></div>
   </div>
 
-
-  <!-- =====================================================
-       COMPLETE BUCKET
-       ===================================================== -->
-
-  <div
-    class="modal fade"
-    id="completeBucketModal"
-    tabindex="-1"
-    aria-hidden="true"
-  >
-
-    <div class="modal-dialog modal-dialog-centered">
-
-      <div class="modal-content rounded-4 border-0 shadow">
-
-        <div class="modal-header border-0 pb-0">
-
-          <h5 class="modal-title fw-bold">
-            Complete Goal 🎉
-          </h5>
-
-          <button
-            type="button"
-            class="btn-close"
-            data-bs-dismiss="modal"
-          ></button>
-
+  <!-- BUCKET MODAL -->
+  <div class="modal fade" id="bucketModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content rounded-4 border-0 shadow">
+      <form id="bucketForm">
+        <div class="modal-header"><h5 class="modal-title fw-bold">Bucket Goal</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <input type="hidden" id="bucketId">
+          <label class="form-label fw-semibold">Goal</label><input id="bucketTitle" class="form-control mb-3" required>
+          <label class="form-label fw-semibold">Category</label>
+          <select id="bucketCategory" class="form-select"><option>Travel</option><option>Adventure</option><option>Personal</option><option>Milestone</option></option></select>
         </div>
-
-
-        <form id="completeBucketForm">
-
-          <input
-            type="hidden"
-            id="completeBucketId"
-          >
-
-
-          <div class="modal-body">
-
-            <p class="text-secondary mb-3">
-              Add a photo to celebrate completing this milestone!
-            </p>
-
-
-            <div class="mb-3">
-
-              <label class="form-label fw-semibold">
-                Celebration Photo
-              </label>
-
-              <input
-                type="file"
-                id="completePhoto"
-                class="form-control"
-                accept="image/*"
-              >
-
-              <div
-                id="completePhotoPreviewContainer"
-                class="mt-3 d-none"
-              >
-
-                <img
-                  id="completePhotoPreview"
-                  class="img-fluid rounded-4 w-100"
-                  style="max-height:220px;object-fit:cover;"
-                  alt="Celebration photo"
-                >
-
-              </div>
-
-            </div>
-
-          </div>
-
-
-          <div class="modal-footer border-0">
-
-            <button
-              type="submit"
-              class="btn btn-success w-100 rounded-pill"
-            >
-
-              <i class="bi bi-check-lg me-1"></i>
-              Mark Complete
-
-            </button>
-
-          </div>
-
-        </form>
-
-      </div>
-
-    </div>
-
+        <div class="modal-footer"><button class="btn btn-success w-100 rounded-pill">Save Goal</button></div>
+      </form>
+    </div></div>
   </div>
 
+  <!-- PLACE MODAL -->
+  <div class="modal fade" id="placeModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content rounded-4 border-0 shadow">
+      <form id="placeForm">
+        <div class="modal-header"><h5 class="modal-title fw-bold">Place</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <input type="hidden" id="placeId">
+          <label class="form-label fw-semibold">Place Name</label><input id="placeName" class="form-control mb-3" required>
+          <label class="form-label fw-semibold">Address / Description</label><input id="placeAddress" class="form-control mb-3">
+          <label class="form-label fw-semibold">Google Maps URL</label><input id="placeMapsUrl" type="url" class="form-control mb-3" placeholder="https://maps.google.com/...">
+          <label class="form-label fw-semibold">Notes</label><textarea id="placeNotes" class="form-control" rows="3"></textarea>
+        </div>
+        <div class="modal-footer"><button class="btn btn-primary w-100 rounded-pill">Save Place</button></div>
+      </form>
+    </div></div>
+  </div>
 
-  <!-- BOOTSTRAP -->
+  <!-- COUNTDOWN MODAL -->
+  <div class="modal fade" id="countdownModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content rounded-4 border-0 shadow">
+      <form id="countdownForm">
+        <div class="modal-header"><h5 class="modal-title fw-bold">Countdown</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <input type="hidden" id="countdownId">
+          <label class="form-label fw-semibold">Event</label><input id="countdownTitle" class="form-control mb-3" required>
+          <label class="form-label fw-semibold">Date & Time</label><input id="countdownDate" type="datetime-local" class="form-control mb-3" required>
+          <label class="form-label fw-semibold">Description</label><textarea id="countdownDescription" class="form-control" rows="3"></textarea>
+        </div>
+        <div class="modal-footer"><button class="btn btn-warning w-100 rounded-pill">Save Countdown</button></div>
+      </form>
+    </div></div>
+  </div>
+
+  <!-- VIEW MEDIA MODAL -->
+  <div class="modal fade" id="mediaModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content rounded-4 border-0 shadow">
+      <div class="modal-header"><h5 id="mediaModalTitle" class="modal-title fw-bold"></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body" id="mediaModalBody"></div>
+    </div></div>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-
-  <script
-    type="module"
-    src="script.js"
-  ></script>
-
+  <script type="module" src="script.js"></script>
 </body>
 </html>
