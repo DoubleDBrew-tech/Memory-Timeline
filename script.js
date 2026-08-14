@@ -11,7 +11,7 @@ import {
   serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// Firebase Configuration
+// Firebase Config
 const firebaseConfig = {
   apiKey: "AIzaSyD2ZJqSiJr0uMb52RhdeClKkBNoncT1VdM",
   authDomain: "memory-timeline-f5e32.firebaseapp.com",
@@ -26,111 +26,68 @@ const db = getFirestore(app);
 
 let loadedMemories = [];
 
-function openModalById(id) {
-  const modalEl = document.getElementById(id);
-  if (modalEl && window.bootstrap) {
-    const instance = window.bootstrap.Modal.getOrCreateInstance(modalEl);
-    instance.show();
+// Helper functions for Bootstrap Modal management
+function hideModal(modalId) {
+  const el = document.getElementById(modalId);
+  if (el && window.bootstrap) {
+    const modal = window.bootstrap.Modal.getInstance(el) || new window.bootstrap.Modal(el);
+    modal.hide();
   }
 }
 
-function closeModalById(id) {
-  const modalEl = document.getElementById(id);
-  if (modalEl && window.bootstrap) {
-    const instance = window.bootstrap.Modal.getInstance(modalEl);
-    if (instance) instance.hide();
+function showModal(modalId) {
+  const el = document.getElementById(modalId);
+  if (el && window.bootstrap) {
+    const modal = window.bootstrap.Modal.getOrCreateInstance(el);
+    modal.show();
   }
 }
 
 // -------------------------------------------------------------
-// WELCOME OVERLAY & FALLING ANIMATION
-// -------------------------------------------------------------
-const welcomeScreen = document.getElementById('welcomeScreen');
-const proceedBtn = document.getElementById('proceedBtn');
-const fallingContainer = document.getElementById('fallingContainer');
-
-function createFallingItem() {
-  if (!fallingContainer) return;
-  const item = document.createElement('div');
-  item.className = 'falling-item';
-
-  if (Math.random() > 0.6) {
-    item.innerText = "I Love Leigh";
-    item.style.fontSize = `${Math.floor(Math.random() * 10) + 16}px`;
-    item.style.fontWeight = "bold";
-  } else {
-    const hearts = ["💖", "❤️", "💕", "🌸", "✨"];
-    item.innerText = hearts[Math.floor(Math.random() * hearts.length)];
-    item.style.fontSize = `${Math.floor(Math.random() * 16) + 18}px`;
-  }
-
-  item.style.left = `${Math.random() * 95}%`;
-  const duration = Math.random() * 3 + 4;
-  item.style.animationDuration = `${duration}s`;
-
-  fallingContainer.appendChild(item);
-
-  setTimeout(() => item.remove(), duration * 1000);
-}
-
-let fallingInterval = setInterval(createFallingItem, 300);
-
-if (proceedBtn && welcomeScreen) {
-  proceedBtn.addEventListener('click', () => {
-    welcomeScreen.style.opacity = '0';
-    clearInterval(fallingInterval);
-    setTimeout(() => {
-      welcomeScreen.style.display = 'none';
-    }, 300);
-  });
-}
-
-// -------------------------------------------------------------
-// 1. TIMELINE LISTENERS
+// 1. TIMELINE MODULE
 // -------------------------------------------------------------
 const memoriesQuery = query(collection(db, "memories"), orderBy("date", "asc"));
 
 onSnapshot(memoriesQuery, (snapshot) => {
   const container = document.getElementById('timelineContainer');
+  if (!container) return;
   container.innerHTML = '';
   loadedMemories = [];
 
   if (snapshot.empty) {
-    container.innerHTML = '<div class="text-center py-4"><span class="empty-msg text-muted">No memories added yet. Tap "Add Memory" above!</span></div>';
+    container.innerHTML = '<div class="text-center py-4 text-muted">No memories added yet. Tap "Add Memory" to create one!</div>';
     return;
   }
 
   let index = 0;
-  snapshot.forEach((docSnapshot) => {
-    const item = { id: docSnapshot.id, ...docSnapshot.data() };
+  snapshot.forEach((docSnap) => {
+    const item = { id: docSnap.id, ...docSnap.data() };
     loadedMemories.push(item);
 
     const side = index % 2 === 0 ? 'left' : 'right';
     const formattedDate = item.date ? new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-    
+
     const element = document.createElement('div');
     element.className = `timeline-item ${side}`;
     element.innerHTML = `
       <div class="timeline-node"></div>
-      <div class="card card-memory border-0 shadow-sm rounded-4" data-id="${item.id}">
-        ${item.image ? `<img src="${item.image}" class="card-img-top rounded-top-4" style="height: 180px; object-fit: cover;">` : ''}
+      <div class="card card-memory border-0 shadow-sm rounded-4" role="button">
+        ${item.image ? `<img src="${item.image}" class="card-img-top rounded-top-4" style="height: 160px; object-fit: cover;">` : ''}
         <div class="card-body">
           <small class="text-primary fw-bold">${formattedDate}</small>
-          <h5 class="card-title fw-bold mt-1">${item.title || ''}</h5>
-          <p class="card-text text-muted text-truncate">${item.note || ''}</p>
+          <h5 class="card-title fw-bold mt-1 mb-1">${item.title || ''}</h5>
+          <p class="card-text text-muted text-truncate mb-0">${item.note || ''}</p>
         </div>
       </div>
     `;
 
-    element.querySelector('.card-memory').addEventListener('click', () => openMemoryModal(item.id));
+    element.querySelector('.card-memory').addEventListener('click', () => viewMemory(item.id));
     container.appendChild(element);
     index++;
   });
-}, (error) => {
-  console.error("Firestore Memories listener error:", error);
 });
 
-function openMemoryModal(id) {
+function viewMemory(id) {
   const item = loadedMemories.find(m => m.id === id);
   if (!item) return;
 
@@ -146,23 +103,22 @@ function openMemoryModal(id) {
     imgEl.classList.add('d-none');
   }
 
-  const audioContainer = document.getElementById('memoryModalAudioContainer');
+  const audioBox = document.getElementById('memoryModalAudioContainer');
   const audioEl = document.getElementById('memoryModalAudio');
   if (item.audio) {
     audioEl.src = item.audio;
-    audioContainer.classList.remove('d-none');
+    audioBox.classList.remove('d-none');
   } else {
-    audioContainer.classList.add('d-none');
+    audioBox.classList.add('d-none');
   }
 
-  openModalById('viewMemoryModal');
+  showModal('viewMemoryModal');
 }
 
 document.getElementById('memoryForm').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const submitBtn = document.getElementById('saveMemoryBtn');
-  submitBtn.disabled = true;
-  submitBtn.innerText = 'Saving...';
+  const btn = document.getElementById('saveMemoryBtn');
+  btn.disabled = true;
 
   try {
     await addDoc(collection(db, "memories"), {
@@ -173,68 +129,68 @@ document.getElementById('memoryForm').addEventListener('submit', async (e) => {
       note: document.getElementById('memNote').value,
       createdAt: serverTimestamp()
     });
-    
+
     e.target.reset();
-    closeModalById('addMemoryModal');
+    hideModal('addMemoryModal');
   } catch (err) {
-    console.error("Error adding memory: ", err);
-    alert("Could not save memory. Ensure Firestore Database rules allow read/write access.");
+    console.error("Error saving memory:", err);
+    alert("Unable to save memory. Check Firestore rules.");
   } finally {
-    submitBtn.disabled = false;
-    submitBtn.innerText = 'Save Memory';
+    btn.disabled = false;
   }
 });
 
 // -------------------------------------------------------------
-// 2. CAPSULE LISTENERS
+// 2. CAPSULES MODULE
 // -------------------------------------------------------------
 const capsulesQuery = query(collection(db, "capsules"), orderBy("unlockDate", "asc"));
 
 onSnapshot(capsulesQuery, (snapshot) => {
   const container = document.getElementById('capsuleContainer');
+  if (!container) return;
   container.innerHTML = '';
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   if (snapshot.empty) {
-    container.innerHTML = '<p class="text-center text-muted py-4">No capsules created yet.</p>';
+    container.innerHTML = '<div class="col-12 text-center text-muted py-4">No capsules created yet.</div>';
     return;
   }
 
-  snapshot.forEach((docSnapshot) => {
-    const item = docSnapshot.data();
+  snapshot.forEach((docSnap) => {
+    const item = docSnap.data();
     const unlockDate = new Date(item.unlockDate);
     unlockDate.setHours(0, 0, 0, 0);
     const isUnlocked = today >= unlockDate;
 
     const timeDiff = unlockDate - today;
-    const daysRemaining = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+    const daysLeft = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
 
     const col = document.createElement('div');
     col.className = 'col-md-6 col-lg-4';
-    
+
     if (isUnlocked) {
       col.innerHTML = `
-        <div class="card capsule-card unlocked shadow-sm rounded-4 h-100">
-          <div class="card-body d-flex flex-column">
+        <div class="card capsule-card unlocked shadow-sm rounded-4 h-100 p-3">
+          <div class="card-body p-0 d-flex flex-column">
             <div class="d-flex justify-content-between align-items-center mb-2">
-              <span class="badge bg-success"><i class="bi bi-unlock"></i> Unlocked</span>
+              <span class="badge bg-success"><i class="bi bi-unlock me-1"></i>Unlocked</span>
               <small class="text-muted">${item.unlockDate}</small>
             </div>
-            <h5 class="fw-bold">${item.title}</h5>
-            <p class="card-text text-secondary mt-2 flex-grow-1" style="white-space: pre-line;">${item.content}</p>
+            <h5 class="fw-bold mb-2">${item.title}</h5>
+            <p class="card-text text-secondary flex-grow-1" style="white-space: pre-line;">${item.content}</p>
           </div>
         </div>
       `;
     } else {
       col.innerHTML = `
-        <div class="card capsule-card locked shadow-sm rounded-4 h-100 text-center p-3">
-          <div class="card-body d-flex flex-column justify-content-center align-items-center">
-            <i class="bi bi-lock-fill display-4 text-secondary mb-3"></i>
-            <h5 class="fw-bold text-dark">${item.title}</h5>
-            <p class="text-muted small mb-3">Unlocks on ${item.unlockDate}</p>
-            <span class="badge bg-danger rounded-pill px-3 py-2">${daysRemaining} day(s) remaining</span>
+        <div class="card capsule-card locked shadow-sm rounded-4 h-100 p-3 text-center">
+          <div class="card-body p-0 d-flex flex-column justify-content-center align-items-center">
+            <i class="bi bi-lock-fill display-5 text-secondary mb-2"></i>
+            <h5 class="fw-bold">${item.title}</h5>
+            <small class="text-muted mb-2">Unlocks: ${item.unlockDate}</small>
+            <span class="badge bg-danger rounded-pill px-3 py-2">${daysLeft} day(s) left</span>
           </div>
         </div>
       `;
@@ -254,34 +210,35 @@ document.getElementById('capsuleForm').addEventListener('submit', async (e) => {
     });
 
     e.target.reset();
-    closeModalById('addCapsuleModal');
+    hideModal('addCapsuleModal');
   } catch (err) {
-    console.error("Error creating capsule: ", err);
+    console.error("Error creating capsule:", err);
   }
 });
 
 // -------------------------------------------------------------
-// 3. BUCKET LIST LISTENERS
+// 3. BUCKET LIST MODULE
 // -------------------------------------------------------------
 const bucketQuery = query(collection(db, "bucketList"), orderBy("createdAt", "desc"));
 
 onSnapshot(bucketQuery, (snapshot) => {
   const container = document.getElementById('bucketListContainer');
+  if (!container) return;
   container.innerHTML = '';
 
   if (snapshot.empty) {
-    container.innerHTML = '<p class="text-center text-muted py-4">No bucket list items added yet.</p>';
+    container.innerHTML = '<div class="col-12 text-center text-muted py-4">No bucket list items added yet.</div>';
     return;
   }
 
-  snapshot.forEach((docSnapshot) => {
-    const item = { id: docSnapshot.id, ...docSnapshot.data() };
+  snapshot.forEach((docSnap) => {
+    const item = { id: docSnap.id, ...docSnap.data() };
     const col = document.createElement('div');
     col.className = 'col-md-6';
     col.innerHTML = `
-      <div class="card border-0 shadow-sm rounded-4 h-100 p-2">
-        <div class="card-body d-flex align-items-start gap-3">
-          <input class="form-check-input mt-1 fs-5 bucket-checkbox" type="checkbox" ${item.completed ? 'checked disabled' : ''} data-id="${item.id}">
+      <div class="card border-0 shadow-sm rounded-4 h-100 p-3">
+        <div class="card-body p-0 d-flex align-items-start gap-3">
+          <input class="form-check-input fs-5 mt-1 bucket-check" type="checkbox" ${item.completed ? 'checked disabled' : ''}>
           <div class="flex-grow-1">
             <span class="badge bg-light text-dark border mb-1">${item.category}</span>
             <h6 class="fw-bold m-0 ${item.completed ? 'text-decoration-line-through text-muted' : ''}">${item.title}</h6>
@@ -291,37 +248,16 @@ onSnapshot(bucketQuery, (snapshot) => {
       </div>
     `;
 
-    const checkbox = col.querySelector('.bucket-checkbox');
+    const checkbox = col.querySelector('.bucket-check');
     if (!item.completed) {
-      checkbox.addEventListener('change', () => promptCompleteGoal(item.id));
+      checkbox.addEventListener('change', () => {
+        document.getElementById('completeBucketId').value = item.id;
+        showModal('completeBucketModal');
+      });
     }
 
     container.appendChild(col);
   });
-});
-
-function promptCompleteGoal(id) {
-  document.getElementById('completeBucketId').value = id;
-  openModalById('completeBucketModal');
-}
-
-document.getElementById('completeBucketForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const id = document.getElementById('completeBucketId').value;
-  const photoUrl = document.getElementById('completePhotoUrl').value;
-
-  try {
-    const docRef = doc(db, "bucketList", id);
-    await updateDoc(docRef, {
-      completed: true,
-      photo: photoUrl
-    });
-
-    e.target.reset();
-    closeModalById('completeBucketModal');
-  } catch (err) {
-    console.error("Error updating goal: ", err);
-  }
 });
 
 document.getElementById('bucketForm').addEventListener('submit', async (e) => {
@@ -336,8 +272,27 @@ document.getElementById('bucketForm').addEventListener('submit', async (e) => {
     });
 
     e.target.reset();
-    closeModalById('addBucketModal');
+    hideModal('addBucketModal');
   } catch (err) {
-    console.error("Error adding goal: ", err);
+    console.error("Error adding bucket goal:", err);
+  }
+});
+
+document.getElementById('completeBucketForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('completeBucketId').value;
+  const photoUrl = document.getElementById('completePhotoUrl').value;
+
+  try {
+    const docRef = doc(db, "bucketList", id);
+    await updateDoc(docRef, {
+      completed: true,
+      photo: photoUrl
+    });
+
+    e.target.reset();
+    hideModal('completeBucketModal');
+  } catch (err) {
+    console.error("Error completing goal:", err);
   }
 });
