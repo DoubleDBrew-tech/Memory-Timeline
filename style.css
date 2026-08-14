@@ -222,6 +222,11 @@ input[type="file"]::file-selector-button {
   }
 }
 
+/* Media can render from public Drive URLs even when OAuth is disconnected. */
+.drive-media-image,
+.drive-media-video { max-width: 100%; }
+.drive-audio-player { width: 100%; }
+
 /* =========================================================
    MULTI-PHOTO MEMORY VIEWER
    ========================================================= */
@@ -233,12 +238,3 @@ input[type="file"]::file-selector-button {
 .memory-media-carousel .carousel-control-prev, .memory-media-carousel .carousel-control-next { width: 15%; }
 .memory-media-carousel .carousel-indicators { margin-bottom: .5rem; }
 #memoryImagePreviewList img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; }
-
-/* Google Drive button must remain directly clickable above toolbar contents. */
-#connectDriveBtn {
-  position: relative;
-  z-index: 20;
-  pointer-events: auto !important;
-  touch-action: manipulation;
-  cursor: pointer;
-}
