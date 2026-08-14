@@ -222,13 +222,8 @@ input[type="file"]::file-selector-button {
   }
 }
 
-/* Media can render from public Drive URLs even when OAuth is disconnected. */
-.drive-media-image,
-.drive-media-video { max-width: 100%; }
-.drive-audio-player { width: 100%; }
-
 /* =========================================================
-   MULTI-PHOTO MEMORY VIEWERe
+   MULTI-PHOTO MEMORY VIEWER
    ========================================================= */
 .memory-viewer-media { min-height: 240px; }
 .memory-media-carousel { background: #111; border-radius: 1rem; overflow: hidden; }
