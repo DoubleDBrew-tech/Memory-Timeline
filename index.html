@@ -202,6 +202,8 @@
           </div>
           <div class="modal-body">
             <input type="hidden" id="memoryId">
+            <input type="hidden" id="memoryExistingAudio">
+            <input type="hidden" id="memoryExistingAudioPath">
             <input type="hidden" id="memoryExistingImage">
             <input type="hidden" id="memoryExistingVideo">
             <input type="hidden" id="memoryExistingImagePath">
@@ -241,6 +243,11 @@
               Photos and videos are stored in your Google Drive. Connect Google Drive before uploading media.
             </div>
             <div class="mb-3 mt-3">
+              <label class="form-label fw-semibold">Audio File <span class="text-muted fw-normal">(optional)</span></label>
+              <input type="file" id="memAudioFile" class="form-control" accept="audio/*">
+              <div class="form-text">Upload audio directly to Google Drive.</div>
+            </div>
+            <div class="mb-3">
               <label class="form-label fw-semibold">Audio URL <span class="text-muted fw-normal">(optional)</span></label>
               <input type="url" id="memAudio" class="form-control" placeholder="https://...mp3">
             </div>
