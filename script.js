@@ -26,7 +26,6 @@ const db = getFirestore(app);
 
 let loadedMemories = [];
 
-// Helper functions using global bootstrap object loaded from index.html
 function openModalById(id) {
   const modalEl = document.getElementById(id);
   if (modalEl && window.bootstrap) {
@@ -79,11 +78,10 @@ let fallingInterval = setInterval(createFallingItem, 300);
 if (proceedBtn && welcomeScreen) {
   proceedBtn.addEventListener('click', () => {
     welcomeScreen.style.opacity = '0';
-    welcomeScreen.style.pointerEvents = 'none';
     clearInterval(fallingInterval);
     setTimeout(() => {
-      welcomeScreen.remove();
-    }, 400);
+      welcomeScreen.style.display = 'none';
+    }, 300);
   });
 }
 
