@@ -91,7 +91,7 @@ function formatDateTime(value) {
       Do not use this mode for highly private media.
    ========================================================= */
 
-const GOOGLE_DRIVE_CLIENT_ID = "1035343182029-e5kbaep69kchplnenphatf83ggqojnsg.apps.googleusercontent.com";
+const GOOGLE_DRIVE_CLIENT_ID = "PASTE_YOUR_GOOGLE_OAUTH_WEB_CLIENT_ID_HERE";
 const GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 const DRIVE_FOLDER_NAME = "Memory Vault Media";
 
@@ -114,12 +114,8 @@ function setDriveStatus(connected, text) {
 
 function getSavedDriveConfig() {
   try {
-    const savedClientId = (localStorage.getItem("memoryVaultGoogleClientId") || "").trim();
-    const validSavedClientId =
-      /^[0-9]+-[a-z0-9_-]+\\.apps\\.googleusercontent\\.com$/i.test(savedClientId);
-
     return {
-      clientId: validSavedClientId ? savedClientId : GOOGLE_DRIVE_CLIENT_ID,
+      clientId: localStorage.getItem("memoryVaultGoogleClientId") || GOOGLE_DRIVE_CLIENT_ID,
       folderName: localStorage.getItem("memoryVaultGoogleFolderName") || DRIVE_FOLDER_NAME
     };
   } catch {
@@ -351,42 +347,24 @@ function revokeDriveObjectUrl(fileId) {
 
 async function hydrateDriveMedia(root = document) {
   const nodes = root.querySelectorAll?.('[data-drive-media-id]') || [];
-
   for (const node of nodes) {
     const fileId = node.dataset.driveMediaId;
     const kind = node.dataset.driveMediaType;
-    const publicUrl = safeUrl(node.dataset.drivePublicUrl || "");
-
     if (!fileId || node.dataset.hydrated === "1") continue;
     node.dataset.hydrated = "1";
-
     try {
-      // Public Drive URLs do not require this device to be OAuth-connected.
-      // OAuth is needed for uploading/deleting, not for viewing an existing
-      // file that was made readable by link.
-      let url = publicUrl;
-
-      // Older records may not have a stored URL. Use authenticated Drive
-      // access as a compatibility fallback when available.
-      if (!url) url = await getDriveMediaObjectUrl(fileId);
-      if (!url) throw new Error("No media URL available.");
-
+      const url = await getDriveMediaObjectUrl(fileId);
       if (kind === "image") {
-        node.outerHTML =
-          `<img src="${escapeHtml(url)}" class="img-fluid rounded-4 drive-media-image" alt="" loading="lazy">`;
+        node.outerHTML = `<img src="${escapeHtml(url)}" class="img-fluid rounded-4 drive-media-image" alt="" loading="lazy">`;
       } else if (kind === "video") {
-        node.outerHTML =
-          `<video src="${escapeHtml(url)}" class="w-100 rounded-4 drive-media-video" controls playsinline preload="metadata"></video>`;
+        node.outerHTML = `<video src="${escapeHtml(url)}" class="w-100 rounded-4 drive-media-video" controls playsinline preload="metadata"></video>`;
       } else if (kind === "audio") {
-        node.outerHTML =
-          `<audio src="${escapeHtml(url)}" controls autoplay playsinline class="w-100 drive-audio-player"></audio>`;
+        node.outerHTML = `<audio src="${escapeHtml(url)}" controls class="w-100 drive-audio-player"></audio>`;
       }
     } catch (error) {
       console.error("Unable to load Google Drive media", fileId, error);
       node.dataset.hydrated = "0";
-      node.innerHTML =
-        `<div class="alert alert-light border small mb-0">` +
-        `<i class="bi bi-cloud-exclamation me-1"></i>Media could not be loaded on this device.</div>`;
+      node.innerHTML = `<div class="alert alert-light border small mb-0"><i class="bi bi-cloud-exclamation me-1"></i>Google Drive media could not be loaded. Connect Google Drive on this device.</div>`;
     }
   }
 }
@@ -558,20 +536,9 @@ function getMemoryPhotoUrls(item) {
 }
 
 function getMemoryMediaIds(item) {
-  const photoIds = getMemoryPhotos(item);
-  const photoUrls = getMemoryPhotoUrls(item);
-
   return [
-    ...photoIds.map((id, index) => ({
-      id,
-      type: "image",
-      publicUrl: safeUrl(photoUrls[index]) || drivePublicUrl(id)
-    })),
-    ...(item?.videoPath ? [{
-      id: item.videoPath,
-      type: "video",
-      publicUrl: safeUrl(item.video) || drivePublicUrl(item.videoPath)
-    }] : [])
+    ...getMemoryPhotos(item).map(id => ({ id, type: "image" })),
+    ...(item?.videoPath ? [{ id: item.videoPath, type: "video" }] : [])
   ];
 }
 
@@ -581,22 +548,9 @@ function mediaMarkup(item, mode = "card") {
   if (!first) {
     return `<div class="d-flex align-items-center justify-content-center rounded-4 bg-light media-thumb"><i class="bi bi-file-earmark fs-1 text-muted"></i></div>`;
   }
-
-  const placeholder =
-    `<div class="drive-media-placeholder" ` +
-    `data-drive-media-id="${escapeHtml(first.id)}" ` +
-    `data-drive-media-type="${first.type}" ` +
-    `data-drive-public-url="${escapeHtml(first.publicUrl || "")}">` +
-      `<div class="text-muted small p-4 text-center">` +
-        `<i class="bi ${first.type === "video" ? "bi-camera-video" : "bi-image"} fs-2 d-block mb-1"></i>` +
-        `Loading ${first.type === "video" ? "video" : "photo"}…` +
-      `</div>` +
-    `</div>`;
-
+  const placeholder = `<div class="drive-media-placeholder" data-drive-media-id="${escapeHtml(first.id)}" data-drive-media-type="${first.type}"><div class="text-muted small p-4 text-center"><i class="bi ${first.type === "video" ? "bi-camera-video" : "bi-image"} fs-2 d-block mb-1"></i>Loading ${first.type === "video" ? "video" : "photo"}…</div></div>`;
   if (mode === "gallery") return placeholder;
-  return placeholder + (media.length > 1
-    ? `<div class="small text-muted text-center mt-2"><i class="bi bi-images me-1"></i>${media.length} media items — tap to swipe</div>`
-    : "");
+  return placeholder + (media.length > 1 ? `<div class="small text-muted text-center mt-2"><i class="bi bi-images me-1"></i>${media.length} media items — tap to swipe</div>` : "");
 }
 
 function renderTimeline() {
@@ -772,7 +726,7 @@ function buildMemoryViewer(item) {
     <div id="memoryMediaCarousel" class="carousel slide memory-media-carousel" data-bs-touch="true">
       <div class="carousel-inner">
         ${media.map((m, i) => `<div class="carousel-item ${i === 0 ? "active" : ""}" data-media-id="${escapeHtml(m.id)}" data-media-type="${m.type}">
-          <div class="memory-slide-content drive-media-placeholder" data-drive-media-id="${escapeHtml(m.id)}" data-drive-media-type="${m.type}" data-drive-public-url="${escapeHtml(m.publicUrl || "")}">
+          <div class="memory-slide-content drive-media-placeholder" data-drive-media-id="${escapeHtml(m.id)}" data-drive-media-type="${m.type}">
             <div class="text-muted p-5 text-center"><i class="bi ${m.type === "video" ? "bi-camera-video" : "bi-image"} fs-1 d-block mb-2"></i>Loading…</div>
           </div>
         </div>`).join("")}
@@ -795,8 +749,8 @@ function buildMemoryViewer(item) {
     viewerVideo = slide.querySelector("video");
     const isVideo = slide.dataset.mediaType === "video";
     if (isVideo) {
-      pauseViewerAudio(true);
-      viewerVideo?.addEventListener("play", () => pauseViewerAudio(true), { once: true });
+      pauseViewerAudio(false, true);
+      viewerVideo?.addEventListener("play", () => pauseViewerAudio(false, true), { once: true });
     } else {
       await resumeViewerAudioIfNeeded();
     }
@@ -809,7 +763,7 @@ function buildMemoryViewer(item) {
 
 function attachViewerVideoHandlers(root) {
   root.querySelectorAll("video").forEach(video => {
-    video.addEventListener("play", () => pauseViewerAudio(true));
+    video.addEventListener("play", () => pauseViewerAudio(false, true));
     video.addEventListener("ended", () => resumeViewerAudioIfNeeded());
   });
 }
@@ -821,75 +775,69 @@ function rememberViewerAudioState() {
   viewerAudioState.wasPlaying = !audio.paused && !audio.ended;
 }
 
-function pauseViewerAudio(preserveState = false) {
+function pauseViewerAudio(sync = true, preserveState = false) {
   const audio = document.querySelector("#memoryModalAudioContainer audio");
   if (!audio) return;
   if (!preserveState) rememberViewerAudioState();
   audio.pause();
+  if (sync) publishPlaybackPause();
 }
 
 async function resumeViewerAudioIfNeeded() {
   const audio = document.querySelector("#memoryModalAudioContainer audio");
-  if (!audio) return;
+  if (!audio || !viewerAudioState.wasPlaying) return;
   try {
     if (Number.isFinite(viewerAudioState.time)) audio.currentTime = viewerAudioState.time;
     await audio.play();
-    viewerAudioState.wasPlaying = true;
   } catch (error) {
-    console.warn("Audio autoplay was blocked by the browser:", error);
+    console.warn("Audio resume requires a user gesture:", error);
   }
 }
 
 async function viewMemory(id) {
   const item = state.memories.find(x => x.id === id);
   if (!item) return;
-
   state.currentMemoryId = id;
   viewerAudioState = { wasPlaying: false, time: 0, memoryId: id };
-
   $("memoryModalTitle").textContent = item.title || "Untitled";
   $("memoryModalDate").textContent = formatDate(item.date);
   $("memoryModalNote").textContent = item.note || "";
+  buildMemoryViewer(item);
+  showModal("viewMemoryModal");
 
   const audioBox = $("memoryModalAudioContainer");
   const audio = $("memoryModalAudio");
-
   audioBox.classList.add("d-none");
-  audio.pause();
-  audio.currentTime = 0;
-  audio.removeAttribute("src");
-  audio.load();
+  audio.pause(); audio.removeAttribute("src"); audio.load();
+  audioBox.querySelectorAll(".drive-audio-player").forEach(x => x.remove());
 
-  // Existing Drive media is publicly readable, so this URL works without
-  // an active OAuth connection on the device.
-  const audioUrl = safeUrl(item.audio) ||
-    (item.audioPath ? drivePublicUrl(item.audioPath) : "");
-
-  if (audioUrl) {
-    audio.src = audioUrl;
-    audio.autoplay = true;
-    audio.controls = true;
+  if (item.audioPath) {
+    audio.classList.add("d-none");
+    audioBox.classList.remove("d-none");
+    const placeholder = document.createElement("div");
+    placeholder.dataset.driveMediaId = item.audioPath;
+    placeholder.dataset.driveMediaType = "audio";
+    audioBox.appendChild(placeholder);
+    await hydrateDriveMedia(audioBox);
+  } else if (safeUrl(item.audio)) {
+    audio.src = safeUrl(item.audio);
     audio.classList.remove("d-none");
     audioBox.classList.remove("d-none");
-    audio.load();
-
-    // Opening a memory is a user interaction. Attempt playback immediately
-    // so the user does not have to press Play separately.
-    try {
-      await audio.play();
-      viewerAudioState.wasPlaying = true;
-    } catch (error) {
-      console.warn("Audio autoplay was blocked by the browser:", error);
-    }
   }
-
-  buildMemoryViewer(item);
-  showModal("viewMemoryModal");
 }
 
 $("memoryModalMedia")?.addEventListener("click", e => {
   if (e.target.closest("button, video, .carousel-control-prev, .carousel-control-next, .carousel-indicators")) return;
   pauseViewerAudio(true);
+});
+
+$("memoryModalAudioContainer")?.addEventListener("click", e => {
+  if (e.target.closest("audio")) {
+    setTimeout(() => {
+      const audio = document.querySelector("#memoryModalAudioContainer audio");
+      if (audio && !audio.paused) publishPlaybackResume();
+    }, 0);
+  }
 });
 
 $("editMemoryBtn").addEventListener("click", () => {
@@ -1375,15 +1323,70 @@ $("completePhoto").addEventListener("change", () => {
 setSyncStatus("online", "Connecting...");
 
 /* =========================================================
-   LOCAL MEDIA PLAYBACK
-   ---------------------------------------------------------
-   Play/pause is intentionally local to this device.
-   Firestore still synchronizes memories, letters, goals, places,
-   and countdowns, but media playback is never written to Firestore.
+   SHARED PLAYBACK CONTROL + 10-MINUTE DRIVE IDLE TIMEOUT
    ========================================================= */
 
-let viewerAudioState = { wasPlaying: false, time: 0, memoryId: "" };
-let viewerVideo = null;
+const PLAYBACK_DOC = doc(db, "playback", "global");
+const DRIVE_IDLE_MS = 10 * 60 * 1000;
+const DRIVE_ACTIVITY_KEY = "memoryVaultDriveLastActivity";
+const DRIVE_CONNECTED_KEY = "memoryVaultDriveAuthorized";
+let lastLocalPlaybackNonce = 0;
+
+function publishPlaybackPause() {
+  const nonce = Date.now() + Math.random();
+  lastLocalPlaybackNonce = nonce;
+  updateDoc(PLAYBACK_DOC, { paused: true, nonce, updatedAt: serverTimestamp() }).catch(() => {});
+}
+function publishPlaybackResume() {
+  const nonce = Date.now() + Math.random();
+  lastLocalPlaybackNonce = nonce;
+  updateDoc(PLAYBACK_DOC, { paused: false, nonce, updatedAt: serverTimestamp() }).catch(() => {});
+}
+
+onSnapshot(PLAYBACK_DOC, snap => {
+  if (!snap.exists()) return;
+  const data = snap.data();
+  state.playback = data;
+  if (data.nonce === lastLocalPlaybackNonce) return;
+  if (data.paused) {
+    const audio = document.querySelector("#memoryModalAudioContainer audio");
+    if (audio) { rememberViewerAudioState(); audio.pause(); }
+    document.querySelectorAll("#memoryModalMedia video").forEach(v => v.pause());
+  }
+});
+
+function markDriveActivity() {
+  try { localStorage.setItem(DRIVE_ACTIVITY_KEY, String(Date.now())); } catch {}
+}
+
+function shouldExpireDriveForInactivity() {
+  try {
+    const last = Number(localStorage.getItem(DRIVE_ACTIVITY_KEY) || 0);
+    return !!last && (Date.now() - last >= DRIVE_IDLE_MS);
+  } catch { return false; }
+}
+
+function disconnectGoogleDriveForInactivity() {
+  const token = driveState.accessToken;
+  driveState.accessToken = "";
+  driveState.tokenExpiresAt = 0;
+  driveState.connected = false;
+  driveState.folderId = "";
+  try { localStorage.removeItem(DRIVE_CONNECTED_KEY); } catch {}
+  setDriveStatus(false, "Disconnected after 10 minutes of inactivity");
+  if (token && window.google?.accounts?.oauth2?.revoke) {
+    try { google.accounts.oauth2.revoke(token, () => {}); } catch {}
+  }
+}
+
+function startDriveIdleMonitor() {
+  const events = ["pointerdown", "keydown", "touchstart", "scroll", "click"];
+  events.forEach(name => window.addEventListener(name, markDriveActivity, { passive: true }));
+  markDriveActivity();
+  setInterval(() => {
+    if (driveState.connected && shouldExpireDriveForInactivity()) disconnectGoogleDriveForInactivity();
+  }, 15000);
+}
 
 /* =========================================================
    GOOGLE DRIVE UI
@@ -1453,17 +1456,20 @@ function waitForGoogleDrive() {
 waitForGoogleDrive();
 
 
-/* Do not auto-connect Drive after refresh.
-   Existing photos/videos use their public Drive URLs and remain viewable.
-   OAuth is requested again only when this device needs Drive write access. */
-setTimeout(() => {
-  const config = getSavedDriveConfig();
-  if (!driveState.connected) {
-    setDriveStatus(
-      false,
-      config.clientId && !config.clientId.includes("PASTE_YOUR_")
-        ? "Ready to connect"
-        : "Client ID required"
-    );
+/* Automatically restore a previously granted Google Drive connection without showing consent again. */
+setTimeout(async () => {
+  const expired = shouldExpireDriveForInactivity();
+  if (expired) {
+    try { localStorage.removeItem(DRIVE_CONNECTED_KEY); } catch {}
+  } else {
+    const restored = await restoreGoogleDriveConnection();
+    if (restored) {
+      setDriveStatus(true, "Connected");
+      renderTimeline();
+      if ($("galleryModal")?.classList.contains("show")) renderGallery();
+    }
   }
+  const config = getSavedDriveConfig();
+  if (!driveState.connected) setDriveStatus(false, config.clientId && !config.clientId.includes("PASTE_YOUR_") ? "Ready to connect" : "Client ID required");
+  startDriveIdleMonitor();
 }, 1200);
