@@ -126,15 +126,17 @@ function getSavedDriveConfig() {
   try {
     const savedClientId = (localStorage.getItem("memoryVaultGoogleClientId") || "").trim();
     const validSavedClientId =
-      /^[0-9]+-[a-z0-9_-]+\\.apps\\.googleusercontent\\.com$/i.test(savedClientId);
+      /^[0-9]+-[a-z0-9_-]+\.apps\.googleusercontent\.com$/i.test(savedClientId);
 
     return {
-      // Ignore stale placeholders or malformed saved IDs.
       clientId: validSavedClientId ? savedClientId : GOOGLE_DRIVE_CLIENT_ID,
       folderName: localStorage.getItem("memoryVaultGoogleFolderName") || DRIVE_FOLDER_NAME
     };
   } catch {
-    return { clientId: GOOGLE_DRIVE_CLIENT_ID, folderName: DRIVE_FOLDER_NAME };
+    return {
+      clientId: GOOGLE_DRIVE_CLIENT_ID,
+      folderName: DRIVE_FOLDER_NAME
+    };
   }
 }
 
@@ -147,131 +149,178 @@ function driveIsAuthorized() {
   return !!driveState.accessToken && Date.now() < driveState.tokenExpiresAt - 30000;
 }
 
+let driveTokenPromise = null;
+let driveTokenResolve = null;
+let driveTokenReject = null;
+
 function initGoogleDriveClient() {
   const config = getSavedDriveConfig();
+
   if (!config.clientId || config.clientId.includes("PASTE_YOUR_")) {
     setDriveStatus(false, "Client ID required");
     return false;
   }
+
   if (!window.google?.accounts?.oauth2) {
     setDriveStatus(false, "Google authorization is still loading...");
     return false;
   }
 
+  // IMPORTANT:
+  // Keep one permanent GIS callback. Do not replace the callback on every
+  // click. Replacing it was fragile and could leave the Drive button with
+  // no working completion path after the app's realtime-sync changes.
   driveState.client = google.accounts.oauth2.initTokenClient({
     client_id: config.clientId,
     scope: GOOGLE_DRIVE_SCOPE,
     callback: response => {
-      if (response.error) {
+      if (response?.error) {
         driveState.accessToken = "";
+        driveState.tokenExpiresAt = 0;
         driveState.connected = false;
-        console.warn("Google Drive authorization:", response.error);
         setDriveStatus(false, "Not connected");
+
+        if (driveTokenReject) {
+          const reject = driveTokenReject;
+          driveTokenResolve = null;
+          driveTokenReject = null;
+          driveTokenPromise = null;
+          reject(new Error(response.error_description || response.error));
+        }
         return;
       }
+
+      if (!response?.access_token) {
+        driveState.accessToken = "";
+        driveState.tokenExpiresAt = 0;
+        driveState.connected = false;
+        setDriveStatus(false, "Authorization failed");
+
+        if (driveTokenReject) {
+          const reject = driveTokenReject;
+          driveTokenResolve = null;
+          driveTokenReject = null;
+          driveTokenPromise = null;
+          reject(new Error("Google did not return an access token."));
+        }
+        return;
+      }
+
       driveState.accessToken = response.access_token;
-      driveState.tokenExpiresAt = Date.now() + ((response.expires_in || 3600) * 1000);
+      driveState.tokenExpiresAt =
+        Date.now() + ((response.expires_in || 3600) * 1000);
       driveState.connected = true;
-      try { localStorage.setItem("memoryVaultDriveAuthorized", "1"); } catch {}
+
+      try {
+        localStorage.setItem("memoryVaultDriveAuthorized", "1");
+      } catch {}
+
       setDriveStatus(true, "Connected");
-      ensureDriveFolder().catch(error => console.error("Drive folder setup:", error));
+      ensureDriveFolder().catch(error =>
+        console.error("Drive folder setup:", error)
+      );
+
+      if (driveTokenResolve) {
+        const resolve = driveTokenResolve;
+        driveTokenResolve = null;
+        driveTokenReject = null;
+        driveTokenPromise = null;
+        resolve(true);
+      }
+    },
+    error_callback: error => {
+      const message =
+        error?.message ||
+        error?.type ||
+        "Google authorization was cancelled or blocked.";
+
+      driveState.connected = false;
+      setDriveStatus(false, "Not connected");
+
+      if (driveTokenReject) {
+        const reject = driveTokenReject;
+        driveTokenResolve = null;
+        driveTokenReject = null;
+        driveTokenPromise = null;
+        reject(new Error(message));
+      }
     }
   });
+
   return true;
 }
 
-let driveTokenPromise = null;
-
-async function connectGoogleDrive(forcePrompt = false) {
-  const config = getSavedDriveConfig();
-  if (!config.clientId || config.clientId.includes("PASTE_YOUR_")) {
-    openGoogleDriveSetup();
-    return false;
-  }
-  if (!window.google?.accounts?.oauth2) {
-    await new Promise(resolve => {
-      const started = Date.now();
-      const timer = setInterval(() => {
-        if (window.google?.accounts?.oauth2 || Date.now() - started > 10000) {
-          clearInterval(timer); resolve();
-        }
-      }, 100);
-    });
-  }
-  if (!window.google?.accounts?.oauth2) throw new Error("Google authorization is still loading.");
-  if (!driveState.client) initGoogleDriveClient();
-  if (!driveState.client) return false;
-  if (driveIsAuthorized()) {
-    setDriveStatus(true, "Connected");
-    return true;
+function requestDriveAccessToken(prompt = "") {
+  if (!driveState.client) {
+    if (!initGoogleDriveClient()) {
+      return Promise.reject(new Error("Google authorization is not ready."));
+    }
   }
 
   if (driveTokenPromise) return driveTokenPromise;
 
-  driveTokenPromise = new Promise(resolve => {
-    const client = driveState.client;
-    const previousCallback = client.callback;
-    client.callback = response => {
-      // Restore the permanent callback immediately so future refreshes work.
-      client.callback = previousCallback;
-      if (!response.error) {
-        driveState.accessToken = response.access_token;
-        driveState.tokenExpiresAt = Date.now() + ((response.expires_in || 3600) * 1000);
-        driveState.connected = true;
-        
-        try { localStorage.setItem("memoryVaultDriveAuthorized", "1"); } catch {}
-        setDriveStatus(true, "Connected");
-        ensureDriveFolder().catch(console.error);
-        resolve(true);
-      } else {
-        driveState.accessToken = "";
-        driveState.connected = false;
-        setDriveStatus(false, "Not connected");
-        resolve(false);
-      }
-    };
+  // The actual requestAccessToken() call is intentionally made immediately
+  // by the button handler when possible. Google requires a user gesture for
+  // browser token requests.
+  driveTokenPromise = new Promise((resolve, reject) => {
+    driveTokenResolve = resolve;
+    driveTokenReject = reject;
+
     try {
-      client.requestAccessToken({ prompt: forcePrompt ? "consent" : "" });
+      driveState.client.requestAccessToken({ prompt });
     } catch (error) {
-      client.callback = previousCallback;
-      resolve(false);
-      throw error;
+      driveTokenResolve = null;
+      driveTokenReject = null;
+      driveTokenPromise = null;
+      reject(error);
     }
-  }).finally(() => { driveTokenPromise = null; });
+  });
 
   return driveTokenPromise;
+}
+
+async function connectGoogleDrive(forcePrompt = false) {
+  const config = getSavedDriveConfig();
+
+  if (!config.clientId || config.clientId.includes("PASTE_YOUR_")) {
+    openGoogleDriveSetup();
+    return false;
+  }
+
+  if (!window.google?.accounts?.oauth2) {
+    throw new Error("Google authorization is still loading. Please try again.");
+  }
+
+  if (!driveState.client && !initGoogleDriveClient()) return false;
+
+  if (driveIsAuthorized()) {
+    driveState.connected = true;
+    setDriveStatus(true, "Connected");
+    return true;
+  }
+
+  try {
+    await requestDriveAccessToken(forcePrompt ? "consent" : "");
+    return driveIsAuthorized();
+  } catch (error) {
+    console.error("Google Drive authorization:", error);
+    setDriveStatus(false, "Not connected");
+    return false;
+  }
 }
 
 async function restoreGoogleDriveConnection() {
   const config = getSavedDriveConfig();
   if (!config.clientId || config.clientId.includes("PASTE_YOUR_")) return false;
   if (!window.google?.accounts?.oauth2) return false;
-  if (!driveState.client) initGoogleDriveClient();
-  if (!driveState.client || driveIsAuthorized()) return driveIsAuthorized();
 
-  let restored = false;
-  try {
-    restored = await new Promise(resolve => {
-      const client = driveState.client;
-      const previousCallback = client.callback;
-      client.callback = response => {
-        client.callback = previousCallback;
-        if (!response.error && response.access_token) {
-          driveState.accessToken = response.access_token;
-          driveState.tokenExpiresAt = Date.now() + ((response.expires_in || 3600) * 1000);
-          driveState.connected = true;
-          
-          try { localStorage.setItem("memoryVaultDriveAuthorized", "1"); } catch {}
-          setDriveStatus(true, "Connected");
-          ensureDriveFolder().catch(console.error);
-          resolve(true);
-        } else resolve(false);
-      };
-      try { client.requestAccessToken({ prompt: "none" }); }
-      catch { client.callback = previousCallback; resolve(false); }
-    });
-  } catch { restored = false; }
-  return restored;
+  if (!driveState.client && !initGoogleDriveClient()) return false;
+  if (driveIsAuthorized()) return true;
+
+  // Do not request authorization automatically. Google Identity Services
+  // requires a user gesture for browser token requests. The Drive button
+  // performs the real authorization request.
+  return false;
 }
 
 async function driveFetch(url, options = {}, retry = true) {
@@ -1346,29 +1395,35 @@ async function deleteRecord(collectionName, item) {
    PREVIEWS + MODAL RESET
    ========================================================= */
 
-$("memImage").addEventListener("change", () => {
+$("memImage")?.addEventListener("change", () => {
   const file = $("memImage").files?.[0];
   const img = $("memoryImagePreview");
+  if (!img) return;
   if (!file) { img.classList.add("d-none"); return; }
-  img.src = URL.createObjectURL(file); img.classList.remove("d-none");
+  img.src = URL.createObjectURL(file);
+  img.classList.remove("d-none");
 });
 
-$("memVideo").addEventListener("change", () => {
+$("memVideo")?.addEventListener("change", () => {
   const file = $("memVideo").files?.[0];
   const video = $("memoryVideoPreview");
+  if (!video) return;
   if (!file) { video.classList.add("d-none"); return; }
-  video.src = URL.createObjectURL(file); video.classList.remove("d-none");
+  video.src = URL.createObjectURL(file);
+  video.classList.remove("d-none");
 });
 
-$("completePhoto").addEventListener("change", () => {
+$("completePhoto")?.addEventListener("change", () => {
   const file = $("completePhoto").files?.[0];
   const img = $("completePhotoPreview");
+  if (!img) return;
   if (!file) { img.classList.add("d-none"); return; }
-  img.src = URL.createObjectURL(file); img.classList.remove("d-none");
+  img.src = URL.createObjectURL(file);
+  img.classList.remove("d-none");
 });
 
 ["memoryModal", "capsuleModal", "bucketModal", "addPlaceModal", "addCountdownModal"].forEach(id => {
-  $(id).addEventListener("hidden.bs.modal", () => {
+  $(id)?.addEventListener("hidden.bs.modal", () => {
     if (id === "memoryModal") {
       $("memoryForm").reset(); $("memoryId").value = ""; $("memoryExistingAudio").value = ""; $("memoryExistingAudioPath").value = ""; resetUploadProgress();
       if ($("memoryImagePreview")) $("memoryImagePreview").classList.add("d-none");
@@ -1393,42 +1448,86 @@ setSyncStatus("online", "Connecting...");
    ========================================================= */
 
 function publishPlaybackPause() {
-  // Intentionally local. Do not write playback state to Firestore.
+  // Playback is deliberately DEVICE-LOCAL.
+  // Do NOT write pause/play/currentTime/video state to Firestore.
+  // Firestore continues to synchronize memories, letters, goals, places,
+  // countdowns, and their media references between all connected devices.
 }
 
 function publishPlaybackResume() {
-  // Intentionally local. Do not write playback state to Firestore.
+  // Same rule: playback remains local to the device.
 }
 
 /* =========================================================
    GOOGLE DRIVE UI
    ========================================================= */
 
+function handleConnectDriveClick(event) {
+  event?.preventDefault?.();
 
-$("connectDriveBtn")?.addEventListener("click", async event => {
-  event.preventDefault();
+  const button = $("connectDriveBtn");
+  if (!button || button.dataset.driveBusy === "1") return;
 
-  try {
-    const ready = await waitForGoogleDriveReady();
-    if (!ready) throw new Error("Google authorization is still loading.");
-
-    const ok = await connectGoogleDrive(true);
-    if (ok) {
-      await ensureDriveFolder();
-      setDriveStatus(true, "Connected");
-    }
-  } catch (error) {
-    console.error("Google Drive connection failed:", error);
-    setDriveStatus(false, "Connection failed");
-    alert(`Unable to connect Google Drive.\n\n${error.message}`);
+  const config = getSavedDriveConfig();
+  if (!config.clientId || config.clientId.includes("PASTE_YOUR_")) {
+    openGoogleDriveSetup();
+    return;
   }
-});
+
+  // requestAccessToken() must happen from the user's click. Do not put an
+  // await before it while GIS is loading, because that can lose the gesture.
+  if (!window.google?.accounts?.oauth2) {
+    setDriveStatus(false, "Google authorization is still loading...");
+    alert("Google authorization is still loading. Please press Connect Google Drive again in a moment.");
+    return;
+  }
+
+  if (!driveState.client && !initGoogleDriveClient()) {
+    alert("Google authorization could not be initialized.");
+    return;
+  }
+
+  button.dataset.driveBusy = "1";
+  button.disabled = true;
+  setDriveStatus(false, "Connecting...");
+
+  const finish = () => {
+    button.dataset.driveBusy = "0";
+    button.disabled = false;
+  };
+
+  if (driveIsAuthorized()) {
+    setDriveStatus(true, "Connected");
+    finish();
+    return;
+  }
+
+  // This call occurs synchronously from the click path.
+  requestDriveAccessToken("consent")
+    .then(async () => {
+      setDriveStatus(true, "Connected");
+      try {
+        await ensureDriveFolder();
+      } catch (error) {
+        console.error("Drive folder setup:", error);
+      }
+    })
+    .catch(error => {
+      console.error("Google Drive connection failed:", error);
+      setDriveStatus(false, "Not connected");
+      alert(`Unable to connect Google Drive.\\n\\n${error.message}`);
+    })
+    .finally(finish);
+}
+
+$("connectDriveBtn")?.addEventListener("click", handleConnectDriveClick);
 
 $("saveDriveSetupBtn")?.addEventListener("click", async () => {
   const clientId = $("googleDriveClientIdInput").value.trim();
-  const folderName = $("googleDriveFolderNameInput").value.trim() || DRIVE_FOLDER_NAME;
+  const folderName =
+    $("googleDriveFolderNameInput").value.trim() || DRIVE_FOLDER_NAME;
 
-  if (!/^[0-9]+-[a-z0-9_-]+\.apps\.googleusercontent\.com$/i.test(clientId)) {
+  if (!/^[0-9]+-[a-z0-9_-]+\\.apps\\.googleusercontent\\.com$/i.test(clientId)) {
     alert("Enter your Google OAuth Web Client ID.");
     return;
   }
@@ -1436,12 +1535,18 @@ $("saveDriveSetupBtn")?.addEventListener("click", async () => {
   saveDriveConfig(clientId, folderName);
   driveState.client = null;
   driveState.accessToken = "";
+  driveState.tokenExpiresAt = 0;
   driveState.folderId = "";
+  driveState.connected = false;
 
   hideModal("driveSetupModal");
 
   try {
-    initGoogleDriveClient();
+    if (!initGoogleDriveClient()) {
+      throw new Error("Google authorization is not ready.");
+    }
+
+    // This is a click from the setup modal, so it is also a valid user gesture.
     const ok = await connectGoogleDrive(true);
     if (ok) {
       await ensureDriveFolder();
@@ -1449,59 +1554,42 @@ $("saveDriveSetupBtn")?.addEventListener("click", async () => {
     }
   } catch (error) {
     console.error(error);
-    alert(`Google Drive setup failed.\n\n${error.message}`);
+    alert(`Google Drive setup failed.\\n\\n${error.message}`);
   }
 });
 
-// Wait for Google Identity Services if the script loads after this module.
-function waitForGoogleDriveReady(timeoutMs = 15000) {
-  if (window.google?.accounts?.oauth2) return Promise.resolve(true);
+/*
+ * Google Identity Services is loaded with async/defer.
+ * Initialize the token client when the library becomes available, but never
+ * automatically request an access token here. Authorization is initiated
+ * only by the user's Connect Google Drive button.
+ */
+function waitForGoogleDrive() {
+  if (window.google?.accounts?.oauth2) {
+    const config = getSavedDriveConfig();
 
-  return new Promise(resolve => {
-    const started = Date.now();
-    const timer = setInterval(() => {
-      if (window.google?.accounts?.oauth2) {
-        clearInterval(timer);
-        resolve(true);
-      } else if (Date.now() - started >= timeoutMs) {
-        clearInterval(timer);
-        resolve(false);
-      }
-    }, 100);
-  });
-}
-
-async function waitForGoogleDrive() {
-  const ready = await waitForGoogleDriveReady();
-
-  if (!ready) {
-    setDriveStatus(false, "Google authorization unavailable");
+    if (config.clientId && !config.clientId.includes("PASTE_YOUR_")) {
+      initGoogleDriveClient();
+      setDriveStatus(false, "Ready to connect");
+    } else {
+      setDriveStatus(false, "Client ID required");
+    }
     return;
   }
 
-  const config = getSavedDriveConfig();
-  if (config.clientId && !config.clientId.includes("PASTE_YOUR_")) {
-    initGoogleDriveClient();
-    setDriveStatus(false, "Ready to connect");
-  } else {
-    setDriveStatus(false, "Client ID required");
-  }
+  setTimeout(waitForGoogleDrive, 100);
 }
 
 waitForGoogleDrive();
 
-
-/* Automatically restore a previously granted Google Drive connection without showing consent again. */
-setTimeout(async () => {
-  const restored = await restoreGoogleDriveConnection();
-  if (restored) {
+/* Automatically restore only the local UI state; never trigger OAuth without
+   a user gesture. */
+setTimeout(() => {
+  if (driveIsAuthorized()) {
+    driveState.connected = true;
     setDriveStatus(true, "Connected");
-    renderTimeline();
-    if ($("galleryModal")?.classList.contains("show")) renderGallery();
-  }
-
-  const config = getSavedDriveConfig();
-  if (!driveState.connected) {
+  } else {
+    const config = getSavedDriveConfig();
     setDriveStatus(
       false,
       config.clientId && !config.clientId.includes("PASTE_YOUR_")
@@ -1509,4 +1597,3 @@ setTimeout(async () => {
         : "Client ID required"
     );
   }
-}, 1200);
