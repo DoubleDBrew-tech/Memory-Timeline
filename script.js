@@ -24,7 +24,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Helper functions for Bootstrap Modal management
+// Helper functions for programmatic modal closing/opening
 function showModal(modalId) {
   const el = document.getElementById(modalId);
   if (el && window.bootstrap) {
@@ -40,16 +40,6 @@ function hideModal(modalId) {
     modal.hide();
   }
 }
-
-// =========================================================
-// CRITICAL FIX: EXPLICIT BUTTON LISTENERS FOR MOBILE/IPAD
-// =========================================================
-document.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("btnOpenAddMemory").addEventListener("click", () => showModal("addMemoryModal"));
-  document.getElementById("btnOpenAddCapsule").addEventListener("click", () => showModal("addCapsuleModal"));
-  document.getElementById("btnOpenAddGoal").addEventListener("click", () => showModal("addBucketModal"));
-});
-// =========================================================
 
 let loadedMemories = [];
 
