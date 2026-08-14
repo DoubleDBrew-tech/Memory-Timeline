@@ -49,9 +49,7 @@
           <button class="btn btn-outline-secondary rounded-pill flex-fill" id="openGalleryBtn">
             <i class="bi bi-images me-1"></i>Gallery
           </button>
-          <button class="btn btn-outline-success rounded-pill flex-fill"
-                  id="connectDriveBtn"
-                  type="button aria-label="Connect Google Drive" role="button">
+          <button class="btn btn-outline-success rounded-pill flex-fill" id="connectDriveBtn" type="button">
             <i class="bi bi-google me-1"></i>Connect Google Drive
           </button>
         </div>
@@ -285,7 +283,7 @@
           <div class="small text-muted mt-2" id="memoryPlaybackHint"><i class="bi bi-hand-index-thumb me-1"></i>Tap the photo/video to pause the memory audio. Swipe to move through the album.</div>
           <div id="memoryModalAudioContainer" class="d-none">
             <label class="form-label fw-bold small text-muted"><i class="bi bi-music-note-beamed"></i> Audio</label>
-            <audio id="memoryModalAudio" controls class="w-100"></audio>
+            <audio id="memoryModalAudio" controls autoplay playsinline class="w-100"></audio>
           </div>
         </div>
         <div class="modal-footer border-0 justify-content-between">
