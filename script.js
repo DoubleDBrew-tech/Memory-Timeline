@@ -205,7 +205,7 @@ async function connectGoogleDrive(forcePrompt = false) {
         driveState.accessToken = response.access_token;
         driveState.tokenExpiresAt = Date.now() + ((response.expires_in || 3600) * 1000);
         driveState.connected = true;
-        markDriveActivity();
+        
         try { localStorage.setItem("memoryVaultDriveAuthorized", "1"); } catch {}
         setDriveStatus(true, "Connected");
         ensureDriveFolder().catch(console.error);
@@ -247,7 +247,7 @@ async function restoreGoogleDriveConnection() {
           driveState.accessToken = response.access_token;
           driveState.tokenExpiresAt = Date.now() + ((response.expires_in || 3600) * 1000);
           driveState.connected = true;
-          markDriveActivity();
+          
           try { localStorage.setItem("memoryVaultDriveAuthorized", "1"); } catch {}
           setDriveStatus(true, "Connected");
           ensureDriveFolder().catch(console.error);
@@ -1323,74 +1323,27 @@ $("completePhoto").addEventListener("change", () => {
 setSyncStatus("online", "Connecting...");
 
 /* =========================================================
-   SHARED PLAYBACK CONTROL + 10-MINUTE DRIVE IDLE TIMEOUT
+   LOCAL PLAYBACK CONTROL
+   =========================================================
+   Playback is intentionally LOCAL to each device.
+   Firestore synchronizes memories/media/data, but NOT play/pause,
+   currentTime, or video state. This prevents Device B from
+   pausing Device A's audio/video.
    ========================================================= */
 
-const PLAYBACK_DOC = doc(db, "playback", "global");
-const DRIVE_IDLE_MS = 10 * 60 * 1000;
-const DRIVE_ACTIVITY_KEY = "memoryVaultDriveLastActivity";
-const DRIVE_CONNECTED_KEY = "memoryVaultDriveAuthorized";
-let lastLocalPlaybackNonce = 0;
-
 function publishPlaybackPause() {
-  const nonce = Date.now() + Math.random();
-  lastLocalPlaybackNonce = nonce;
-  updateDoc(PLAYBACK_DOC, { paused: true, nonce, updatedAt: serverTimestamp() }).catch(() => {});
+  // Intentionally local. Do not write playback state to Firestore.
 }
+
 function publishPlaybackResume() {
-  const nonce = Date.now() + Math.random();
-  lastLocalPlaybackNonce = nonce;
-  updateDoc(PLAYBACK_DOC, { paused: false, nonce, updatedAt: serverTimestamp() }).catch(() => {});
-}
-
-onSnapshot(PLAYBACK_DOC, snap => {
-  if (!snap.exists()) return;
-  const data = snap.data();
-  state.playback = data;
-  if (data.nonce === lastLocalPlaybackNonce) return;
-  if (data.paused) {
-    const audio = document.querySelector("#memoryModalAudioContainer audio");
-    if (audio) { rememberViewerAudioState(); audio.pause(); }
-    document.querySelectorAll("#memoryModalMedia video").forEach(v => v.pause());
-  }
-});
-
-function markDriveActivity() {
-  try { localStorage.setItem(DRIVE_ACTIVITY_KEY, String(Date.now())); } catch {}
-}
-
-function shouldExpireDriveForInactivity() {
-  try {
-    const last = Number(localStorage.getItem(DRIVE_ACTIVITY_KEY) || 0);
-    return !!last && (Date.now() - last >= DRIVE_IDLE_MS);
-  } catch { return false; }
-}
-
-function disconnectGoogleDriveForInactivity() {
-  const token = driveState.accessToken;
-  driveState.accessToken = "";
-  driveState.tokenExpiresAt = 0;
-  driveState.connected = false;
-  driveState.folderId = "";
-  try { localStorage.removeItem(DRIVE_CONNECTED_KEY); } catch {}
-  setDriveStatus(false, "Disconnected after 10 minutes of inactivity");
-  if (token && window.google?.accounts?.oauth2?.revoke) {
-    try { google.accounts.oauth2.revoke(token, () => {}); } catch {}
-  }
-}
-
-function startDriveIdleMonitor() {
-  const events = ["pointerdown", "keydown", "touchstart", "scroll", "click"];
-  events.forEach(name => window.addEventListener(name, markDriveActivity, { passive: true }));
-  markDriveActivity();
-  setInterval(() => {
-    if (driveState.connected && shouldExpireDriveForInactivity()) disconnectGoogleDriveForInactivity();
-  }, 15000);
+  // Intentionally local. Do not write playback state to Firestore.
 }
 
 /* =========================================================
    GOOGLE DRIVE UI
    ========================================================= */
+
+*/
 
 $("connectDriveBtn")?.addEventListener("click", async () => {
   const config = getSavedDriveConfig();
@@ -1458,18 +1411,20 @@ waitForGoogleDrive();
 
 /* Automatically restore a previously granted Google Drive connection without showing consent again. */
 setTimeout(async () => {
-  const expired = shouldExpireDriveForInactivity();
-  if (expired) {
-    try { localStorage.removeItem(DRIVE_CONNECTED_KEY); } catch {}
-  } else {
-    const restored = await restoreGoogleDriveConnection();
-    if (restored) {
-      setDriveStatus(true, "Connected");
-      renderTimeline();
-      if ($("galleryModal")?.classList.contains("show")) renderGallery();
-    }
+  const restored = await restoreGoogleDriveConnection();
+  if (restored) {
+    setDriveStatus(true, "Connected");
+    renderTimeline();
+    if ($("galleryModal")?.classList.contains("show")) renderGallery();
   }
+
   const config = getSavedDriveConfig();
-  if (!driveState.connected) setDriveStatus(false, config.clientId && !config.clientId.includes("PASTE_YOUR_") ? "Ready to connect" : "Client ID required");
-  startDriveIdleMonitor();
+  if (!driveState.connected) {
+    setDriveStatus(
+      false,
+      config.clientId && !config.clientId.includes("PASTE_YOUR_")
+        ? "Ready to connect"
+        : "Client ID required"
+    );
+  }
 }, 1200);
