@@ -937,6 +937,84 @@ $("capsuleForm").addEventListener("submit", async event => {
 });
 
 /* =========================================================
+   OPEN LETTER AS ROMANTIC PAPER
+   ---------------------------------------------------------
+   ADD THIS AFTER the existing renderCapsules() function and
+   its event listeners. Do not remove the existing editor.
+   ========================================================= */
+
+function openLetterView(item) {
+  if (!item) return;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const unlock = new Date(`${item.unlockDate}T00:00:00`);
+
+  // Keep the existing time-capsule rule: a sealed letter cannot be opened.
+  if (today < unlock) {
+    const days = Math.max(0, Math.ceil((unlock - today) / 86400000));
+    alert(`This letter is still sealed. 💌\n\nIt will open in ${days} day(s).`);
+    return;
+  }
+
+  $("letterViewTitle").textContent = item.title || "My Letter";
+  $("letterViewDate").textContent = item.unlockDate
+    ? new Date(`${item.unlockDate}T00:00:00`).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "long",
+        day: "numeric"
+      })
+    : "";
+  $("letterViewContent").textContent = item.content || "";
+
+  showModal("letterViewModal");
+}
+
+/* Make the entire unlocked letter card open like a real letter.
+   Existing Edit/Delete buttons keep their original behavior. */
+$("capsuleContainer")?.addEventListener("click", event => {
+  if (event.target.closest(".edit-capsule, .delete-capsule, button, a, input, textarea, select")) {
+    return;
+  }
+
+  const card = event.target.closest(".capsule-card");
+  if (!card) return;
+
+  const cards = Array.from($("capsuleContainer").querySelectorAll(".capsule-card"));
+  const index = cards.indexOf(card);
+  if (index < 0 || !state.capsules[index]) return;
+
+  openLetterView(state.capsules[index]);
+});
+
+/* Mark unlocked cards as openable without changing the existing card layout. */
+function markOpenableLetters() {
+  const container = $("capsuleContainer");
+  if (!container) return;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  container.querySelectorAll(".capsule-card").forEach((card, index) => {
+    const item = state.capsules[index];
+    if (!item) return;
+
+    const unlock = new Date(`${item.unlockDate}T00:00:00`);
+    card.classList.toggle("letter-openable", today >= unlock);
+  });
+}
+
+/* renderCapsules() already runs from the realtime Firestore listener.
+   Watch the existing container so every newly rendered card gets the
+   openable styling without replacing the existing render function. */
+const capsuleContainer = $("capsuleContainer");
+if (capsuleContainer && "MutationObserver" in window) {
+  const observer = new MutationObserver(() => markOpenableLetters());
+  observer.observe(capsuleContainer, { childList: true, subtree: true });
+}
+markOpenableLetters();
+
+/* =========================================================
    BUCKET LIST + COMPLETION TRACKING
    ========================================================= */
 
