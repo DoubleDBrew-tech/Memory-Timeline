@@ -111,6 +111,35 @@
         </div>
         <div class="row g-4" id="capsuleContainer"></div>
       </div>
+      
+      <!-- ADD THIS immediately after the existing #capsuleModal and before #bucketModal. -->
+<div class="modal fade" id="letterViewModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-xl letter-view-dialog">
+    <div class="modal-content border-0 bg-transparent shadow-none">
+      <div class="letter-paper-shell">
+        <div class="letter-paper">
+          <div class="letter-flower letter-flower-top">✿</div>
+          <div class="letter-flower letter-flower-bottom">✿</div>
+
+          <div class="letter-paper-inner">
+            <div class="letter-paper-date" id="letterViewDate"></div>
+            <h2 class="letter-paper-title" id="letterViewTitle"></h2>
+            <div class="letter-paper-rule"></div>
+            <div class="letter-paper-content" id="letterViewContent"></div>
+            <div class="letter-paper-signature">Love, always ♡</div>
+          </div>
+        </div>
+
+        <button type="button"
+                class="btn btn-light rounded-circle letter-close-btn"
+                data-bs-dismiss="modal"
+                aria-label="Close letter">
+          <i class="bi bi-x-lg"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 
       <div class="tab-pane fade" id="bucket-pane">
         <div class="d-flex justify-content-between align-items-center mb-3 touch-safe-header">
