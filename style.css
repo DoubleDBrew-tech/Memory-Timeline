@@ -233,3 +233,203 @@ input[type="file"]::file-selector-button {
 .memory-media-carousel .carousel-control-prev, .memory-media-carousel .carousel-control-next { width: 15%; }
 .memory-media-carousel .carousel-indicators { margin-bottom: .5rem; }
 #memoryImagePreviewList img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; }
+
+/* =========================================================
+   ROMANTIC HANDWRITTEN LETTER VIEW
+   ---------------------------------------------------------
+   This is intentionally separate from the normal capsule
+   editor/card styling. It gives an opened letter the same
+   warm stationery feeling as the supplied reference image.
+   ========================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Dancing+Script:wght@500;600;700&display=swap');
+
+.letter-view-dialog {
+  max-width: 980px;
+  margin: 1rem auto;
+}
+
+.letter-paper-shell {
+  position: relative;
+  padding: 12px;
+}
+
+.letter-paper {
+  position: relative;
+  min-height: min(760px, 82vh);
+  overflow: hidden;
+  border-radius: 8px;
+  padding: clamp(22px, 5vw, 62px);
+  background:
+    radial-gradient(circle at 8% 10%, rgba(255,255,255,.9) 0 3px, transparent 4px),
+    radial-gradient(circle at 91% 13%, rgba(185,145,103,.12) 0 2px, transparent 3px),
+    radial-gradient(circle at 20% 88%, rgba(185,145,103,.10) 0 2px, transparent 3px),
+    linear-gradient(90deg, rgba(137,100,55,.035) 1px, transparent 1px),
+    linear-gradient(rgba(137,100,55,.028) 1px, transparent 1px),
+    #fffaf0;
+  background-size: auto, auto, auto, 9px 9px, 9px 9px, auto;
+  box-shadow:
+    0 24px 60px rgba(47, 34, 22, .22),
+    inset 0 0 0 1px rgba(143, 102, 61, .16),
+    inset 0 0 45px rgba(143, 102, 61, .08);
+  transform: rotate(-0.25deg);
+}
+
+.letter-paper::before,
+.letter-paper::after {
+  content: "";
+  position: absolute;
+  width: 190px;
+  height: 190px;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: .65;
+  filter: blur(.1px);
+}
+
+.letter-paper::before {
+  top: -72px;
+  right: -62px;
+  background:
+    radial-gradient(circle at 42% 54%, #d9899a 0 10px, transparent 11px),
+    radial-gradient(circle at 60% 39%, #e8a2af 0 9px, transparent 10px),
+    radial-gradient(circle at 67% 65%, #c96f87 0 8px, transparent 9px),
+    radial-gradient(ellipse at 50% 55%, #7d956d 0 5px, transparent 6px),
+    radial-gradient(ellipse at 72% 49%, #7d956d 0 5px, transparent 6px);
+  transform: rotate(-20deg);
+}
+
+.letter-paper::after {
+  bottom: -92px;
+  left: -65px;
+  background:
+    radial-gradient(circle at 48% 40%, #d9899a 0 10px, transparent 11px),
+    radial-gradient(circle at 62% 58%, #e8a2af 0 9px, transparent 10px),
+    radial-gradient(circle at 35% 63%, #c96f87 0 8px, transparent 9px),
+    radial-gradient(ellipse at 52% 55%, #7d956d 0 5px, transparent 6px),
+    radial-gradient(ellipse at 32% 50%, #7d956d 0 5px, transparent 6px);
+}
+
+.letter-paper-inner {
+  position: relative;
+  z-index: 2;
+  width: min(100%, 760px);
+  min-height: 100%;
+  margin: 0 auto;
+  padding: clamp(8px, 2vw, 20px);
+}
+
+.letter-paper-date {
+  margin-bottom: 12px;
+  text-align: right;
+  color: #806e60;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.letter-paper-title {
+  margin: 0 0 12px;
+  color: #30251f;
+  font-family: "Dancing Script", "Brush Script MT", cursive;
+  font-size: clamp(2.1rem, 6vw, 4.2rem);
+  font-weight: 700;
+  line-height: 1.05;
+}
+
+.letter-paper-rule {
+  width: 100%;
+  height: 1px;
+  margin: 8px 0 28px;
+  background: linear-gradient(90deg, transparent, rgba(120, 88, 61, .35), transparent);
+}
+
+.letter-paper-content {
+  color: #28211d;
+  font-family: "Dancing Script", "Brush Script MT", cursive;
+  font-size: clamp(1.55rem, 3.7vw, 2.35rem);
+  font-weight: 600;
+  line-height: 1.62;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-align: left;
+  text-shadow: 0 .2px 0 rgba(40, 33, 29, .15);
+}
+
+.letter-paper-signature {
+  margin-top: 38px;
+  color: #392a23;
+  font-family: "Dancing Script", "Brush Script MT", cursive;
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  font-weight: 700;
+  text-align: right;
+}
+
+.letter-flower {
+  position: absolute;
+  z-index: 3;
+  color: #c77d91;
+  font-size: 4.8rem;
+  line-height: 1;
+  opacity: .5;
+  text-shadow:
+    18px 14px 0 #df9baa,
+    38px 2px 0 #b9677e;
+  pointer-events: none;
+}
+
+.letter-flower-top {
+  top: 20px;
+  right: 20px;
+  transform: rotate(12deg);
+}
+
+.letter-flower-bottom {
+  bottom: 18px;
+  left: 18px;
+  transform: rotate(-20deg);
+}
+
+.letter-close-btn {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  z-index: 10;
+  width: 42px;
+  height: 42px;
+  box-shadow: 0 5px 18px rgba(0,0,0,.16);
+}
+
+.capsule-card.letter-openable {
+  cursor: pointer;
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+
+.capsule-card.letter-openable:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px rgba(60, 38, 25, .14) !important;
+}
+
+@media (max-width: 576px) {
+  .letter-view-dialog {
+    margin: .35rem;
+  }
+
+  .letter-paper {
+    min-height: 88vh;
+    padding: 30px 20px 34px;
+  }
+
+  .letter-paper-content {
+    font-size: 1.55rem;
+    line-height: 1.58;
+  }
+
+  .letter-paper-title {
+    font-size: 2.5rem;
+  }
+
+  .letter-flower {
+    font-size: 3.5rem;
+  }
+}
